@@ -17,7 +17,7 @@ process SMALT_MAP {
     def ref_name = ref_fai.toString() - '.fai'
     """
 
-    smalt map -f bam -n 4 -l pe -i 1000 -j 20 -r 1 -y 0.5 -o ${prefix}.bam ${ref_name} ${reads[0]} ${reads[1]}
+    smalt map -f bam -n 4 -l pe -i 1000 -j 20 -r -1 -y 0.5 -o ${prefix}.bam ${ref_name} ${reads[0]} ${reads[1]}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
