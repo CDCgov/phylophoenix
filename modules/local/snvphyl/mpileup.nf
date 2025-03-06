@@ -17,7 +17,7 @@ process MPILEUP {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
 
-    bcftools mpileup --threads 4 --fasta-ref ${ref_genome} -A -B -C 0 -d 1024 -q 0 -Q 0 --output-type v -I --output ${prefix}_mpileup.vcf ${sorted_bams}
+    bcftools mpileup --threads 4 --seed 1 --fasta-ref ${ref_genome} -A -B -C 0 -d 1024 -q 0 -Q 0 --output-type v -I --output ${prefix}_mpileup.vcf ${sorted_bams}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
