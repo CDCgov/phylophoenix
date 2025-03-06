@@ -235,17 +235,24 @@ workflow SNVPHYL {
             combined_ch
         )
         ch_versions = ch_versions.mix(CONSOLIDATE_BCFS.out.versions)
+        
+        // collect all filter densities and separate them in their own channel by ST
+        consolidated_fds_ch = CONSOLIDATE_BCFS.out.filtered_densities.map { meta, consolidated_fds -> [meta.seq_type, [meta, consolidated_fds]] }  // Extract `seq_type` as key
+            .groupTuple().map{ seq_type, consolidated_fds ->
+            def meta = [seq_type: seq_type]
+            def consolidated_fds_files = consolidated_fds.collect { it[1] }  // Collect all BAM files for this `seq_type`
+            // Format as required: [ [meta], bcf_file1, bcf_file2, ... ]
+            [meta] + [consolidated_fds_files]}
 
-        // collect all sorted filter densities files and filter them into their own channel by ST
-        consolidate_filtered_densities_ch = CONSOLIDATE_BCFS.out.filtered_densities.combine(FIND_REPEATS.out.repeats_bed_file).filter{ meta_fd, filtered_densities, meta_bed, repeats_bed_file -> 
+        // using the filter densities channel combine with bed file and filter them into their own channel by ST
+        consolidate_filtered_densities_ch = consolidated_fds_ch.combine(FIND_REPEATS.out.repeats_bed_file).filter{ meta_fd, filtered_densities, meta_bed, repeats_bed_file -> 
             // Only keep pairs where `seq_type` matches
             meta_fd.seq_type == meta_bed.seq_type}.map { meta_fd, filtered_densities, meta_bed, repeats_bed_file ->
                 def meta = [:]
                 meta.seq_type = meta_fd.seq_type
-                meta.id = filtered_densities.getName().replaceAll("_filtered_density.txt", "")
                 // Format the output as required
                 [ meta, filtered_densities, repeats_bed_file ]}
-
+        
         // Concat filtered densities to make new invalid_postions
         CONSOLIDATE_FILTERED_DENSITY (
             consolidate_filtered_densities_ch
