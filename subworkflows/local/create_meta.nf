@@ -136,10 +136,10 @@ def create_assembly_channel(LinkedHashMap row) {
     // add path(s) of the assembly file(s) to the meta map
     def assembly_meta = []
     if (!file(row.assembly_1).exists()) {
-        exit 1, "ERROR: Please check st samplesheet -> Assembly scaffolds file does not exist!\n${row.assembly}"
+        exit 1, "ERROR: Please check st samplesheet -> Assembly scaffolds file does not exist!\n${row.assembly_1}"
     }
     if (!file(row.assembly_2).exists()) {
-        exit 1, "ERROR: Please check st samplesheet -> Assembly scaffolds file does not exist!\n${row.assembly}"
+        exit 1, "ERROR: Please check st samplesheet -> Assembly scaffolds file does not exist!\n${row.assembly_2}"
     }
     assembly_meta = [ meta, file(row.assembly_1), file(row.assembly_2) ]
     return assembly_meta

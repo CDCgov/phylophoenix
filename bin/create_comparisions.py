@@ -25,10 +25,11 @@ def create_sample_sheets(samplesheet):
         st_snv_samplesheet.write('sample,directory') #write the header
     df = pd.read_csv(samplesheet, sep=',', header=0)
     sample_list = df["sample"].tolist()
+    sample_list 
     for sample in sample_list: # for each sample that is part of the ST
         with open(samplesheet, 'r') as f: # read the orginal directory samplesheet
             for line in f:
-                if str(sample) in line:
+                if (str(sample)+",") in line:
                     with open("SNVPhyl_" + seq_type +"_samplesheet_pre.csv", "a") as st_snv_samplesheet: # this create a file with headers
                         st_snv_samplesheet.write("\n" + line.strip('\n'))
                     assembly = line.split(',')[1].strip() + "/assembly/" + str(sample) + ".filtered.scaffolds.fa.gz"
