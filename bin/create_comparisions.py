@@ -25,7 +25,6 @@ def create_sample_sheets(samplesheet):
         st_snv_samplesheet.write('sample,directory') #write the header
     df = pd.read_csv(samplesheet, sep=',', header=0)
     sample_list = df["sample"].tolist()
-    sample_list 
     for sample in sample_list: # for each sample that is part of the ST
         with open(samplesheet, 'r') as f: # read the orginal directory samplesheet
             for line in f:
