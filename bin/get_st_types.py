@@ -49,7 +49,7 @@ def create_sample_sheets(st_dict, samplesheet):
         for sample in sample_list: # for each sample that is part of the ST
             with open(samplesheet, 'r') as f: # read the orginal griphin samplesheet
                 for line in f:
-                    if sample in line:
+                    if (sample + ",") in line:
                         with open("SNVPhyl_" + seq_type +"_samplesheet_pre.csv", "a") as st_snv_samplesheet: # this create a file with headers
                             st_snv_samplesheet.write("\n" + line.strip('\n'))
                         assembly = line.split(',')[1].strip() + "/assembly/" + sample + ".filtered.scaffolds.fa.gz"
