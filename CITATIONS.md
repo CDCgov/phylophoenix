@@ -10,10 +10,19 @@
 
 ## Pipeline tools
 
-- [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+- [FreeBayes](https://github.com/freebayes/freebayes)
+  > Garrison E, Marth G. Haplotype-based variant detection from short-read sequencing. arXiv preprint arXiv:1207.3907 [q-bio.GN] 2012
+- [SMALT](https://github.com/rcallahan/smalt)
+- [SAMtools/BCFtools]](https://www.htslib.org/)
+  >  Danecek P, Bonfield JK, Liddle J, Marshall J, Ohan V, Pollard MO, Whitwham A, Keane T, McCarthy SA, Davies RM, Li H, Twelve years of SAMtools and BCFtools, GigaScience (2021) 10(2) giab008 [33590861]
+- [PhyML](https://github.com/stephaneguindon/phyml)
+  > PhyML 3.0: "New Algorithms and Methods to Estimate Maximum-Likelihood Phylogenies: Assessing the Performance of PhyML 3.0." Guindon S., Dufayard J.F., Lefort V., Anisimova M., Hordijk W., Gascuel O. Systematic Biology, 59(3):307-21, 2010.
+- [PHoeNIx](https://github.com/CDCgov/phoenix)
+  > Jill V. Hagey, Nicholas Vlachos, Alyssa Kent, Peng Qi, Alison Laufer Halpin. (2024). CDCgov/phoenix: v2.1.1 (v2.1.1). Zenodo. https://doi.org/10.5281/zenodo.10869898
 
-- [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
-  > Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics. 2016 Oct 1;32(19):3047-8. doi: 10.1093/bioinformatics/btw354. Epub 2016 Jun 16. PubMed PMID: 27312411; PubMed Central PMCID: PMC5039924.
+
+- [Microreact](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+
 
 ## Software packaging/containerisation tools
 

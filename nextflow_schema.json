@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/phylophoenix/master/nextflow_schema.json",
-    "title": "nf-core/phylophoenix pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/dhqp/phylophoenix/main/nextflow_schema.json",
+    "title": "cdcgov/phylophoenix pipeline parameters",
     "description": "Pipeline for relatedness determination using PHoeNIx output.",
     "type": "object",
     "definitions": {
@@ -10,7 +10,7 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "required": [],
             "properties": {
                 "input": {
                     "type": "string",
@@ -18,8 +18,8 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "schema": "assets/schema_input.json",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/phylophoenix/usage#samplesheet-input).",
+                    "description": "Path to comma-separated file containing the location of the samples you want to run.",
+                    "help_text": "You will need to create a csv file with the location of your of the samples you want to run before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/phylophoenix/usage#samplesheet-input).",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
@@ -28,55 +28,82 @@
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open"
                 },
+                "indir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "The input directory that is a PHoeNIx style structure. A samplesheet will be created from this to run.",
+                    "fa_icon": "fas fa-folder-open"
+                },
+                "by_st": {
+                    "type": "boolean",
+                    "default": "False",
+                    "description": "Passing this parameter means that phylophoenix will split the input dataset up my the their MLST and running isolates together as a group by MLST.",
+                    "fa_icon": "fas fa-keyboard"
+                },
+                "no_all": {
+                    "type": "boolean",
+                    "default": "False",
+                    "description": "By default Phylophoenix runs all samples together and only splits samples by st if --by_st is passed. If you ONLY want to run samples split by ST and not all together then pass --by_st and --no_all.",
+                    "fa_icon": "fas fa-keyboard"
+                },
+                "metadata": {
+                    "type": "string",
+                    "format": "file-path",
+                    "default": "null",
+                    "description": "Used to pass a metadata.tsv file. The file needs a header with the first column called WGS_ID where every sample in the run needs to be listed.",
+                    "fa_icon": "fas fa-keyboard"
+                },
+                "blind_list": {
+                    "type": "string",
+                    "format": "file-path",
+                    "default": "null",
+                    "description": "Used to pass a blind.csv file, which is a CSV file with the format of actual_sample_name,blind_new_name (one sample per line). This is used to 'blind' your output so you can make visualizations without using actual isolate names say for a conference, meeting with folks outside of your organization.",
+                    "fa_icon": "fas fa-keyboard"
+                },
                 "email": {
                     "type": "string",
                     "description": "Email address for completion summary.",
                     "fa_icon": "fas fa-envelope",
                     "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
                     "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
-                },
-                "multiqc_title": {
-                    "type": "string",
-                    "description": "MultiQC report title. Printed as page header, used for filename if not otherwise specified.",
-                    "fa_icon": "fas fa-file-signature"
                 }
             }
         },
-        "reference_genome_options": {
-            "title": "Reference genome options",
-            "type": "object",
-            "fa_icon": "fas fa-dna",
-            "description": "Reference genome related files and options required for the workflow.",
+        "snvphyl_options":{
+            "title": "Options for SNVPhyl Subworkflow",
             "properties": {
-                "genome": {
+                "reference_genome": {
                     "type": "string",
-                    "description": "Name of iGenomes reference.",
-                    "fa_icon": "fas fa-book",
-                    "help_text": "If using a reference genome configured in the pipeline using iGenomes, use this parameter to give the ID for the reference. This is then used to build the full paths for all required reference genome files e.g. `--genome GRCh38`. \n\nSee the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details."
+                    "description": "Reference genome.",
+                    "default": 16,
+                    "help_text": "Reference genome you would like to use rather than getting a centriod."
                 },
-                "fasta": {
-                    "type": "string",
-                    "format": "file-path",
-                    "mimetype": "text/plain",
-                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
-                    "description": "Path to FASTA genome file.",
-                    "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have a BWA index available this will be generated for you automatically. Combine with `--save_reference` to save BWA index for future runs.",
-                    "fa_icon": "far fa-file-code"
+                "window_size": {
+                    "type": "integer",
+                    "description": "Window size for identifying high-density SNV regions.",
+                    "default": 11,
+                    "help_text": "Window size for identifying high-density SNV regions. Should be an integer e.g. `--window_size 11`"
                 },
-                "igenomes_base": {
-                    "type": "string",
-                    "format": "directory-path",
-                    "description": "Directory / URL base for iGenomes references.",
-                    "default": "s3://ngi-igenomes/igenomes",
-                    "fa_icon": "fas fa-cloud-download-alt",
-                    "hidden": true
-                },
-                "igenomes_ignore": {
+                "density_threshold": {
+                    "type": "integer",
+                    "description": "SNV threshold for identifying high-density SNV regions.",
+                    "default": 2,
+                    "help_text": "SNV threshold for identifying high-density SNV regions. Should be an integer e.g. `--density_threshold 2`"
+                }
+            }
+        },
+        "Advanced Options for Power Users":{
+            "title": "Advanced Options for Power Users",
+            "type": "object",
+            "fa_icon": "fas fa-terminal",
+            "description": "Pipeline Parameters for expert users. Don't change these unless you know what you're doing.",
+            "required": [],
+            "properties": {
+                "force": {
                     "type": "boolean",
-                    "description": "Do not load the iGenomes reference config.",
-                    "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
+                    "default": "False",
+                    "description": "By default Phylophoenix will remove any isolates from the analysis if it failed QC in PHoeNIx (FAIL in Minimum_QC_Check column). If you pass --force then Phylophoenix will ignore if samples have failed QC. This can produce unexpected results as some files marked 'FAIL' might have failed for lack of reads or missing files, which can cause downstream issues.",
+                    "fa_icon": "fas fa-keyboard"
                 }
             }
         },
@@ -140,7 +167,6 @@
                     "description": "Maximum number of CPUs that can be requested for any single job.",
                     "default": 16,
                     "fa_icon": "fas fa-microchip",
-                    "hidden": true,
                     "help_text": "Use to set an upper-limit for the CPU requirement for each process. Should be an integer e.g. `--max_cpus 1`"
                 },
                 "max_memory": {
@@ -149,7 +175,6 @@
                     "default": "128.GB",
                     "fa_icon": "fas fa-memory",
                     "pattern": "^\\d+(\\.\\d+)?\\.?\\s*(K|M|G|T)?B$",
-                    "hidden": true,
                     "help_text": "Use to set an upper-limit for the memory requirement for each process. Should be a string in the format integer-unit e.g. `--max_memory '8.GB'`"
                 },
                 "max_time": {
@@ -158,7 +183,6 @@
                     "default": "240.h",
                     "fa_icon": "far fa-clock",
                     "pattern": "^(\\d+\\.?\\s*(s|m|h|day)\\s*)+$",
-                    "hidden": true,
                     "help_text": "Use to set an upper-limit for the time requirement for each process. Should be a string in the format integer-unit e.g. `--max_time '2.h'`"
                 }
             }
@@ -173,14 +197,12 @@
                 "help": {
                     "type": "boolean",
                     "description": "Display help text.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
+                    "fa_icon": "fas fa-question-circle"
                 },
                 "version": {
                     "type": "boolean",
                     "description": "Display version and exit.",
-                    "fa_icon": "fas fa-question-circle",
-                    "hidden": true
+                    "fa_icon": "fas fa-question-circle"
                 },
                 "publish_dir_mode": {
                     "type": "string",
@@ -226,23 +248,6 @@
                     "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
                     "hidden": true
                 },
-                "multiqc_config": {
-                    "type": "string",
-                    "description": "Custom config file to supply to MultiQC.",
-                    "fa_icon": "fas fa-cog",
-                    "hidden": true
-                },
-                "multiqc_logo": {
-                    "type": "string",
-                    "description": "Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config file",
-                    "fa_icon": "fas fa-image",
-                    "hidden": true
-                },
-                "multiqc_methods_description": {
-                    "type": "string",
-                    "description": "Custom MultiQC yaml file containing HTML including a methods description.",
-                    "fa_icon": "fas fa-cog"
-                },
                 "tracedir": {
                     "type": "string",
                     "description": "Directory to keep pipeline Nextflow logs and reports.",
@@ -272,7 +277,7 @@
             "$ref": "#/definitions/input_output_options"
         },
         {
-            "$ref": "#/definitions/reference_genome_options"
+            "$ref": "#/definitions/snvphyl_options"
         },
         {
             "$ref": "#/definitions/institutional_config_options"

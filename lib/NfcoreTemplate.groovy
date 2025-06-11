@@ -230,8 +230,16 @@ class NfcoreTemplate {
         if (workflow.success) {
             if (workflow.stats.ignoredCount == 0) {
                 log.info "-${colors.purple}[$workflow.manifest.name]${colors.green} Pipeline completed successfully${colors.reset}-"
+                log.info "${colors.bicyan} \nDISCLAIMER: The methods used for phylogenetic determination and the data summarized are for public health surveillance or investigational purposes only and must NOT be communicated to the patient, their care provider, or placed in the patient’s medical record. These results should NOT be used for diagnosis, treatment, or assessment of individual patient health or management.\n ${colors.reset}"
+                if (params.force==true){
+                    log.info "${colors.bired}You passed --force, so samples that failed QC in PHoeNIx are going to be included in the analysis! This can produce unexpected results, DO NOT USE THIS FLAG UNLESS YOU KNOW WHAT YOU ARE DOING!${colors.reset}"
+                }
             } else {
                 log.info "-${colors.purple}[$workflow.manifest.name]${colors.yellow} Pipeline completed successfully, but with errored process(es) ${colors.reset}-"
+                log.info "${colors.bicyan} \nDISCLAIMER: The methods used for phylogenetic determination and the data summarized are for public health surveillance or investigational purposes only and must NOT be communicated to the patient, their care provider, or placed in the patient’s medical record. These results should NOT be used for diagnosis, treatment, or assessment of individual patient health or management.\n ${colors.reset}"
+                if (params.force==true){
+                    log.info "${colors.bired}You passed --force, so samples that failed QC in PHoeNIx are going to be included in the analysis! This can produce unexpected results, DO NOT USE THIS FLAG UNLESS YOU KNOW WHAT YOU ARE DOING!${colors.reset}"
+                }
             }
         } else {
             log.info "-${colors.purple}[$workflow.manifest.name]${colors.red} Pipeline completed with errors${colors.reset}-"
@@ -302,6 +310,7 @@ class NfcoreTemplate {
         colorcodes['bipurple']   = monochrome_logs ? '' : "\033[1;95m"
         colorcodes['bicyan']     = monochrome_logs ? '' : "\033[1;96m"
         colorcodes['biwhite']    = monochrome_logs ? '' : "\033[1;97m"
+        colorcodes['biorange'] = monochrome_logs ? '' : "\033[1;38;5;214m"
 
         return colorcodes
     }
@@ -311,7 +320,7 @@ class NfcoreTemplate {
     //
     public static String dashedLine(monochrome_logs) {
         Map colors = logColours(monochrome_logs)
-        return "-${colors.dim}----------------------------------------------------${colors.reset}-"
+        return "-${colors.dim}---------------------------------------------------------------------------------${colors.reset}-"
     }
 
     //
@@ -323,12 +332,14 @@ class NfcoreTemplate {
         String.format(
             """\n
             ${dashedLine(monochrome_logs)}
-                                                    ${colors.green},--.${colors.black}/${colors.green},-.${colors.reset}
-            ${colors.blue}        ___     __   __   __   ___     ${colors.green}/,-._.--~\'${colors.reset}
-            ${colors.blue}  |\\ | |__  __ /  ` /  \\ |__) |__         ${colors.yellow}}  {${colors.reset}
-            ${colors.blue}  | \\| |       \\__, \\__/ |  \\ |___     ${colors.green}\\`-._,-`-,${colors.reset}
-                                                    ${colors.green}`._,._,\'${colors.reset}
-            ${colors.purple}  ${workflow.manifest.name} ${workflow_version}${colors.reset}
+            ${colors.bired}  ___                     __     ___                           _____          ${colors.reset}
+            ${colors.bired} |   \\  |   | \\  /  |    /  \\   |   \\  |   |   __   ___  |\\  |   |    \\  /  ${colors.reset}
+            ${colors.bired} |___/  |---|  \\/   |   |    |  |___/  |___|  /  \\ |___  | \\ |   |     \\/  ${colors.reset}
+            ${colors.bired} |      |   |  /    |___ \\__/   |      |   |  \\__/ |___  |  \\| __|__  /  \\ ${colors.reset}
+            ${colors.bired}                                                        ${colors.reset}
+            ${colors.biorange} Built and Maintained by CDC's Division of Healthcare Quality Promotion (DHQP)  ${colors.reset}
+            ${colors.bired}                                                        ${colors.reset}
+            ${colors.bicyan}  ${workflow.manifest.name} ${workflow_version}${colors.reset}
             ${dashedLine(monochrome_logs)}
             """.stripIndent()
         )

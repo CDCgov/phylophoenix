@@ -1,6 +1,6 @@
 {
-    "name": "nf-core/phylophoenix",
-    "homePage": "https://github.com/nf-core/phylophoenix",
+    "name": "dhqp/phylophoenix",
+    "homePage": "https://github.com/dhqp/phylophoenix",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {

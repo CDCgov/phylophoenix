@@ -34,7 +34,7 @@ class RowChecker:
         sample_col="sample",
         first_col="fastq_1",
         second_col="fastq_2",
-        single_col="single_end",
+        seq_col="seq_type",
         **kwargs,
     ):
         """
@@ -47,16 +47,15 @@ class RowChecker:
                 FASTQ file path (default "fastq_1").
             second_col (str): The name of the column that contains the second (if any)
                 FASTQ file path (default "fastq_2").
-            single_col (str): The name of the new column that will be inserted and
-                records whether the sample contains single- or paired-end sequencing
-                reads (default "single_end").
+            seq_col (str): The name of the new column that will be inserted and
+                records what the sequence type is for that sample contains (default "All_Isolates").
 
         """
         super().__init__(**kwargs)
         self._sample_col = sample_col
         self._first_col = first_col
         self._second_col = second_col
-        self._single_col = single_col
+        self._seq_col = seq_col
         self._seen = set()
         self.modified = []
 
@@ -72,9 +71,14 @@ class RowChecker:
         self._validate_sample(row)
         self._validate_first(row)
         self._validate_second(row)
-        self._validate_pair(row)
+        self._validate_type(row)
         self._seen.add((row[self._sample_col], row[self._first_col]))
         self.modified.append(row)
+
+    def _validate_type(self, row):
+        """Assert that the sample type exists."""
+        if len(row[self._seq_col]) <= 0:
+            raise AssertionError("Sample type is required.")
 
     def _validate_sample(self, row):
         """Assert that the sample name exists and convert spaces to underscores."""
@@ -93,17 +97,6 @@ class RowChecker:
         """Assert that the second FASTQ entry has the right format if it exists."""
         if len(row[self._second_col]) > 0:
             self._validate_fastq_format(row[self._second_col])
-
-    def _validate_pair(self, row):
-        """Assert that read pairs have the same file extension. Report pair status."""
-        if row[self._first_col] and row[self._second_col]:
-            row[self._single_col] = False
-            first_col_suffix = Path(row[self._first_col]).suffixes[-2:]
-            second_col_suffix = Path(row[self._second_col]).suffixes[-2:]
-            if first_col_suffix != second_col_suffix:
-                raise AssertionError("FASTQ pairs must have the same file extensions.")
-        else:
-            row[self._single_col] = True
 
     def _validate_fastq_format(self, filename):
         """Assert that a given filename has one of the expected FASTQ extensions."""
@@ -127,7 +120,8 @@ class RowChecker:
         for row in self.modified:
             sample = row[self._sample_col]
             seen[sample] += 1
-            row[self._sample_col] = f"{sample}_T{seen[sample]}"
+            #row[self._sample_col] = f"{sample}_T{seen[sample]}"
+            row[self._sample_col] = f"{sample}"
 
 
 def read_head(handle, num_lines=10):
@@ -210,7 +204,7 @@ def check_samplesheet(file_in, file_out):
                 sys.exit(1)
         checker.validate_unique_samples()
     header = list(reader.fieldnames)
-    header.insert(1, "single_end")
+    #header.insert(1, "single_end")
     # See https://docs.python.org/3.9/library/csv.html#id3 to read up on `newline=""`.
     with file_out.open(mode="w", newline="") as out_handle:
         writer = csv.DictWriter(out_handle, header, delimiter=",")
