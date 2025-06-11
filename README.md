@@ -9,6 +9,15 @@
 
 [![Get help on Slack](http://img.shields.io/badge/slack-StaPH--B%20%23phoenix--dev-4A154B?labelColor=000000&logo=slack)](https://staph-b-dev.slack.com/channels/phoenix-dev)
 
+#### Metrics
+
+<!---[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fcdcgov%2Fphoenix&count_bg=%233DC8A9&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=Page+Hits&edge_flat=false)](https://hits.seeyoufarm.com)
+
+ ![GitHub Clones](https://img.shields.io/github/downloads/cdcgov/phoenix/total.svg?style=social&logo=github&label=Clones-)  --->
+
+[![Custom Badge](https://img.shields.io/badge/GitHub-%F0%9F%94%A5%F0%9F%8C%BF%F0%9F%90%A6%F0%9F%94%A5%20GitHub%20Clones%3A%200-blue?logo=GitHub&style=for-the-badge&logoColor=black&label=%20&labelColor=white&color=blue&style=flat-square)](https://github.com/)  
+
+
 ## Introduction
 
 🔥🌿🐦🔥 PhyloPHoeNIx is meant to be run in tandem with [🔥🐦🔥 PHoeNIx](https://github.com/CDCgov/phoenix/wiki/) to aid in outbreak investigations by estimating relatedness between samples. Both pipelines were built and are maintained by bioinformatians in the **CDC's [Division of Healthcare Quality Promotion (DHQP)](https://www.cdc.gov/ncezid/divisions-offices/about-dhqp.html?CDC_AAref_Val=https://www.cdc.gov/ncezid/dhqp/index.html)** to standardize surveillance of [antibiotic resistance threats](https://www.cdc.gov/antimicrobial-resistance/media/pdfs/antimicrobial-resistance-threats-update-2022-508.pdf), identification of novel resistance threats and support public health laboratories in their genomic analysis of healthcare-associated infection organisms. PhyloPHoeNIx is a comprehensive pipeline that performs:  
