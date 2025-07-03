@@ -9,7 +9,7 @@ process REMOVE_FAILURES {
 
     output:
     path('failed_ids.txt'),            emit: failured_ids
-    path('Directory_samplesheet.csv'), emit: cleaned_dir_samplesheet
+    path('Directory_samplesheet_pass.csv'), emit: cleaned_dir_samplesheet
     path("versions.yml"),              emit: versions
 
     when:
