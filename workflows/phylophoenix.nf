@@ -183,10 +183,26 @@ workflow PHYLOPHOENIX {
         if (by_st==true) {
 
             // Creates samplesheets with sample,seq_type,path_to_assembly
-            GET_SEQUENCE_TYPES (
-                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report
-            )
-            ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+            if (params.blind_list != null){ // if control list is passed allow it to be relative
+                // Allow control list to be relative
+                blind_path = Channel.fromPath(params.blind_list, relative: true)
+                // get sequence types with a blind list
+                GET_SEQUENCE_TYPES (
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path
+                )
+                ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+
+            } else {
+                // get sequence types without a blind list
+                GET_SEQUENCE_TYPES (
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, []
+                )
+                ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+            }
+
+
+
+
 
             if (params.metadata!=null) {
                 // get metadata into channel

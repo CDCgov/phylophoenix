@@ -5,6 +5,7 @@ process GET_SEQUENCE_TYPES {
     input:
     path(griphin_samplesheet) // -s
     path(griphin_report) // -g
+    path(blind_list) // -b
 
     output:
     path("ST*_samplesheet.csv"),             emit: st_samplesheets     // headers: id,seq_type,assembly_1,assembly_2
@@ -20,9 +21,11 @@ process GET_SEQUENCE_TYPES {
     } else {
         error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
     }
+    //get blind_names if it exists
+    def blind_names   = blind_list ? "--blind_list ${blind_list}" : ""
     def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
     """
-    ${ica}get_st_types.py -g ${griphin_report} -s ${griphin_samplesheet}
+    ${ica}get_st_types.py -g ${griphin_report} -s ${griphin_samplesheet} ${blind_names} 
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

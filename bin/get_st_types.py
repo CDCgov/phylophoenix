@@ -15,8 +15,23 @@ def parseArgs(args=None):
     parser = argparse.ArgumentParser(description='Script to generate a PhoeNix summary excel sheet.')
     parser.add_argument('-s', '--samplesheet', default=None, required=False, dest='samplesheet', help='GRiPHin samplesheet of sample,directory in csv format.')
     parser.add_argument('-g', '--griphin_report', required=False, dest='griphin_report', help='A griphin excel report.')
+    parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
+
+
+def blind_map(control_file):
+    """Creates a mapping dictionary between the old and new names"""
+    rename_mapping = {}
+    with open(control_file, 'r') as controls:
+        header = next(controls) # skip the first line of the samplesheet
+        for line in controls:
+            old_sample_name = line.split(",")[0]
+            new_sample_name = line.split(",")[1].rstrip("\n")
+            if new_sample_name != '' and new_sample_name != old_sample_name:
+                rename_mapping[new_sample_name] = old_sample_name
+    return rename_mapping
+
 
 def get_st_groups(griphin_report):
     """Get unique ST groups from griphin report."""
@@ -28,25 +43,29 @@ def get_st_groups(griphin_report):
     clean_df = clean_df.drop(index=indexes_to_drop) # drop the rows that have "Novel_allele" in "Primary_MLST" column
     list_of_sts = clean_df["Primary_MLST"].unique() # get unique mlsts from what is left
     if list_of_sts.size == 0:  # This will be True if list_of_sts is empty
-        raise ValueError("After removing Novel MLSTs there are no STs with enough isolates (min 3) to run Phylophoenix. This set can only be run all together.")
+        raise ValueError("After removing Novel MLSTs there are no STs with enough isolates (min 2) to run Phylophoenix. This set can only be run all together.")
     #get sample names per st type into dictionary
     st_dict = {} #create an empty dictionary
     for seq_type in list_of_sts:
         sample_list = list(clean_df.loc[clean_df["Primary_MLST"] == seq_type, 'WGS_ID']) # get the sample names per ST type
-        if len(sample_list) > 1: # Do not include cases where the there are more than 2 samples for a given ST type
+        if len(sample_list) > 1: # Do not include cases where the there are less than 2 samples for a given ST type
             st_dict[seq_type] = sample_list # add st type and its samples to a dictionary
         else:
             pass
     return st_dict
 
-def create_sample_sheets(st_dict, samplesheet):
+def create_sample_sheets(st_dict, samplesheet, blind_list):
     """Create a samplesheet with the assemblies for each Seq Type. Also, creates samplesheet to run SNVPhyl for each Seq Type."""
     complete_list = []
+    if blind_list != None:
+        rename_mapping = blind_map(blind_list)
     for seq_type, sample_list in st_dict.items():
         list_of_samples_by_st = []
         with open("SNVPhyl_" + seq_type +"_samplesheet_pre.csv", "a") as st_snv_samplesheet: # create a new sample sheet for each ST that can be used by snvphyl
             st_snv_samplesheet.write('sample,directory') #write the header
         for sample in sample_list: # for each sample that is part of the ST
+            if blind_list != None and sample in rename_mapping.keys(): #if the sample is in the blind list change it to the old name to compare 
+                sample = rename_mapping[sample]
             with open(samplesheet, 'r') as f: # read the orginal griphin samplesheet
                 for line in f:
                     if (sample + ",") in line:
@@ -75,7 +94,7 @@ def combine_samplesheets():
 def main():
     args = parseArgs()
     st_dict = get_st_groups(args.griphin_report) # open the excel sheet get sample names organized by their ST types
-    create_sample_sheets(st_dict, args.samplesheet) # go back to the samplesheet and keep only lines this matching samplenames
+    create_sample_sheets(st_dict, args.samplesheet, args.blind_list) # go back to the samplesheet and keep only lines this matching samplenames
     combine_samplesheets()
 
 if __name__ == '__main__':
