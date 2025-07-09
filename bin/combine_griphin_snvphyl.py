@@ -60,11 +60,12 @@ def append_tsv_to_excel(old_griphin, snvmatrices, result_dict, blind_list):
         #sheet.merge_cells("A" + str(start_row) + ":" + xl_rowcol_to_cell(start_row -1 , snvmatrix_df.shape[0]))
         if count == 0:
             snvmatrix_cell = sheet.cell(row=start_row, column=1, value="SNVPhyl Analysis: SNV Matrices")
+            sheet.cell(row=start_row,column=2).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
+            sheet.cell(row=start_row,column=3).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
             count = 1
         snvmatrix_cell.fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
         snvmatrix_cell.font = Font(bold=True)
-        sheet.cell(row=start_row,column=2).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
-        sheet.cell(row=start_row,column=3).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
+
         # Derive seq_type from the filename by removing '_snvMatrix.tsv'
         seq_type = os.path.basename(snvmatrix).replace('_snvMatrix.tsv', '')
         # Write the seq_type label in bold
