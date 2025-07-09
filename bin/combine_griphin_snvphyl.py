@@ -20,10 +20,24 @@ def get_version():
 def parseArgs(args=None):
     parser = argparse.ArgumentParser(description="Add latitude and longitude to a dataset.")
     parser.add_argument("-g", "--griphin", required=True, help="Input GRiPHin_Summary.xlsx file")
+    parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
-def append_tsv_to_excel(old_griphin, snvmatrices, result_dict):
+def blind_map(control_file):
+    """If you passed a file to -c this will swap out sample names to 'blind' the WGS_IDs in the final excel file."""
+    rename_mapping = {}
+    with open(control_file, 'r') as controls:
+        header = next(controls) # skip the first line of the samplesheet
+        for line in controls:
+            old_sample_name = line.split(",")[0]
+            new_sample_name = line.split(",")[1].rstrip("\n")
+            if new_sample_name != '' and new_sample_name != old_sample_name:
+                rename_mapping[old_sample_name] = new_sample_name
+    return rename_mapping
+
+
+def append_tsv_to_excel(old_griphin, snvmatrices, result_dict, blind_list):
     # Load the original Excel file with openpyxl to preserve formatting and merged cells
     workbook = openpyxl.load_workbook(old_griphin)
     sheet = workbook.active
@@ -31,35 +45,47 @@ def append_tsv_to_excel(old_griphin, snvmatrices, result_dict):
     start_row = sheet.max_row + 2  # +2 to leave a blank line after existing data
     # Define a bold font for seq_type labels
     bold_font = openpyxl.styles.Font(bold=True)
+    #if blind_list create a mapping dictionary
+    if blind_list != None:
+        rename_mapping = blind_map(blind_list)
     # Iterate through each TSV file to append
     count = 0
     for snvmatrix in snvmatrices:
         # Load the TSV file data
         snvmatrix_df = pd.read_csv(snvmatrix, sep='\t')
+        if blind_list != None:
+            snvmatrix_df['WGS_ID'] = snvmatrix_df['WGS_ID'].replace(rename_mapping)
+            snvmatrix_df = snvmatrix_df.rename(columns=rename_mapping)
         # Write text, apply thistle color, and bold font in one line
-        sheet.merge_cells("A" + str(start_row) + ":" + xl_rowcol_to_cell(start_row -1 , snvmatrix_df.shape[0]))
+        #sheet.merge_cells("A" + str(start_row) + ":" + xl_rowcol_to_cell(start_row -1 , snvmatrix_df.shape[0]))
         if count == 0:
             snvmatrix_cell = sheet.cell(row=start_row, column=1, value="SNVPhyl Analysis: SNV Matrices")
             count = 1
         snvmatrix_cell.fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
         snvmatrix_cell.font = Font(bold=True)
+        sheet.cell(row=start_row,column=2).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
+        sheet.cell(row=start_row,column=3).fill = PatternFill(start_color="D8BFD8", end_color="D8BFD8", fill_type="solid")
         # Derive seq_type from the filename by removing '_snvMatrix.tsv'
         seq_type = os.path.basename(snvmatrix).replace('_snvMatrix.tsv', '')
         # Write the seq_type label in bold
         sheet.cell(row=start_row + 1, column=1, value=seq_type).font = bold_font
         # print the reference 
         # Extract columns that end with '*'
-        ref_with_asterisk = [col for col in snvmatrix_df.columns if col.endswith('*')]
-        ref = "Reference used for " + seq_type + ":"
+        ref_without_asterisk = [col for col in snvmatrix_df.columns if col.endswith('*')][0][:-1]
+        #blind the sample if it is in the mapping file
+        if blind_list != None:
+            if ref_without_asterisk in rename_mapping.keys():
+                ref_without_asterisk =  rename_mapping[ref_without_asterisk]
+        ref = "Reference:" #"Reference used for " + seq_type + ":"
         sheet.cell(row=start_row + 2, column=1, value=ref)
-        sheet.cell(row=start_row + 2, column=1, value=ref_with_asterisk[0][:-1])
+        sheet.cell(row=start_row + 2, column=2, value=ref_without_asterisk)
         # Write the % core genome
         #core = "% Core Genome Used: " + str(result_dict.get(seq_type))
         sheet.cell(row=start_row + 3, column=1, value="SNVPhyl core estimate:")
         sheet.cell(row=start_row + 3, column=2, value=str(result_dict.get(seq_type))+"%")
         # Write the header of the TSV file below the seq_type label
         for col_idx, column_name in enumerate(snvmatrix_df.columns, start=1):
-            #sheet.cell(row=start_row + 2, column=col_idx, value=column_name).font = bold_font
+            sheet.cell(row=start_row + 5, column=col_idx, value=column_name).font = bold_font
             sheet.cell(row=start_row + 5, column=col_idx, value=column_name)
         # Write the TSV data below the header
         for i, row in snvmatrix_df.iterrows():
@@ -106,10 +132,12 @@ def get_files():
             print(f"Error processing file '{vcf2core}': {e}")
     return snvmatrices, result_dict
 
-def main(old_griphin):
+def main():
+    args = parseArgs()
+    old_griphin = args.griphin
     snvmatrices, result_dict = get_files()
-    append_tsv_to_excel(old_griphin, snvmatrices, result_dict)
+    append_tsv_to_excel(old_griphin, snvmatrices, result_dict, args.blind_list)
+
 
 if __name__ == "__main__":
-    args = parseArgs()
-    main(args.griphin)
+    main()

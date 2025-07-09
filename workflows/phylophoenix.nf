@@ -83,21 +83,17 @@ workflow PHYLOPHOENIX {
 
     main:
         ch_versions = Channel.empty()
-
         // get geonames file into a channel. Coding it this way and not params so we can use a glob and not be verbose.
         geonames_ch = Channel.fromPath("${baseDir}/assets/databases/*_geolocation.txt.xz").collect()
-
         // Create report
         GRIPHIN_WORKFLOW (
             input_samplesheet_path, indir
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
-
         // If you pass --no_all then samples will not be run all together
         if (params.no_all==false) {
             // Allow outdir to be relative
             //outdir_path = Channel.fromPath(params.outdir, relative: true, type: 'dir')
-
             // Creates samplesheets with sampleid,seq_type,path_to_assembly
             GET_COMPARISONS (
                 GRIPHIN_WORKFLOW.out.directory_samplesheet
@@ -301,10 +297,25 @@ workflow PHYLOPHOENIX {
             vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }
         }
 
-        COMBINE_GRIPHIN_SNVPHYL (
-            snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report
-        )
-        ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+
+
+        if (params.blind_list != null){ // if control list is passed allow it to be relative
+            // Allow control list to be relative
+            blind_path = Channel.fromPath(params.blind_list, relative: true)
+            // Create report
+            COMBINE_GRIPHIN_SNVPHYL (
+            snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path
+            )
+            ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+
+        } else {
+            // combine without blinding 
+            COMBINE_GRIPHIN_SNVPHYL (
+            snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, []
+            )
+            ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+        }
+
 
         CUSTOM_DUMPSOFTWAREVERSIONS (
             ch_versions.unique().collectFile(name: 'collated_versions.yml')

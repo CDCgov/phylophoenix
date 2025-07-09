@@ -6,6 +6,7 @@ process COMBINE_GRIPHIN_SNVPHYL {
     path(snvMatrix)
     path(vcf2core)
     path(griphin_report)
+    path(blind_list)
 
     output:
     path("SNVPhyl_GRiPHin_Summary.xlsx"), emit: updated_samplesheet
@@ -20,10 +21,11 @@ process COMBINE_GRIPHIN_SNVPHYL {
     } else {
         error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
     }
+    def blind_names   = blind_list ? "--blind_list ${blind_list}" : ""
     // get container info
     def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
     """
-    ${ica}combine_griphin_snvphyl.py -g ${griphin_report}
+    ${ica}combine_griphin_snvphyl.py -g ${griphin_report} ${blind_names} 
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
