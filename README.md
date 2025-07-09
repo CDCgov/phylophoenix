@@ -17,6 +17,11 @@
 
 [![Custom Badge](https://img.shields.io/badge/GitHub-%F0%9F%94%A5%F0%9F%8C%BF%F0%9F%90%A6%F0%9F%94%A5%20GitHub%20Clones%3A%20352-blue?logo=GitHub&style=for-the-badge&logoColor=black&label=%20&labelColor=white&color=blue&style=flat-square)](https://github.com/)  
 
+# SHARE IT Act Compliance  
+Org: CDC/NCEZID/DHQP/CEMB  
+Contact Email: ncezid_shareit@cdc.gov  
+
+The SHARE IT Act is a federal law that says government agencies like CDC must be more transparent about the software we build using federal funds. It CDC publishes a public list that describes what custom-developed software we’ve created. This helps other agencies know what exists so we’re not reinventing the wheel.  
 
 ## Introduction
 
