@@ -15,7 +15,7 @@ Initial release of nf-core/phylophoenix, created with the [nf-core](https://nf-c
 
 ### `Deprecated`
 
-vXX.XX.XX (XX/XX/2025)
+vXX.XX.XX (XX/XX/2025)   
 **Fixed Bugs:** 
 - Fixed --blind_list samples being excluded from by_st
 - Fixed unmerging and color-coding SNVPhyl sub-header
