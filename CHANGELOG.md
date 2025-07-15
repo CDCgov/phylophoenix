@@ -14,3 +14,9 @@ Initial release of nf-core/phylophoenix, created with the [nf-core](https://nf-c
 ### `Dependencies`
 
 ### `Deprecated`
+vXX.XX.XX (XX/XX/2025)   
+Fixed Bugs:   
+- Fixed --blind_list samples being excluded from by_st
+- Fixed unmerging and color-coding SNVPhyl sub-header
+- Blinded --blind_list samples in SNVPhyl section of GRiPHin report
+- Fixed failures being deleted in original directory samplesheet
