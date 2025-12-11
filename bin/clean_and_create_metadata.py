@@ -10,8 +10,10 @@ import re
 import logging
 from datetime import datetime
 import re
+from re import search
 import calendar
 import math
+from GRiPHin import find_big_5
 # Import the COUNTRY_CODE_MAP from the country_code_map module
 from country_code_map import COUNTRY_CODE_MAP
 from country_code_map import COUNTRY_NAME_TO_CODE_MAP
@@ -27,8 +29,14 @@ def parseArgs(args=None):
     parser.add_argument("-o", "--output", required=True, help="Output TSV file") # ST345_preclean_metadata.tsv
     parser.add_argument("-l", "--log", default="offline_geocoding_errors.log",required=False, help="Error log file")
     parser.add_argument("-g", "--griphin_tsv", default="GRiPHin_Summary.tsv", required=True, help="Griphin file.")
+    parser.add_argument('-b', '--bldb', default=None, required=False, dest='bldb', help='.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
+
+#set colors for warnings so they are seen
+CRED = '\033[91m'+'\nWarning: '
+CYELLOW = '\033[93m'
+CEND = '\033[0m'
 
 # Constants: Paths to pre-processed datasets
 US_DATA_FILE = "us_geolocation.txt"
@@ -110,9 +118,9 @@ def get_full_country_name(key):
 
 def safe_strip(value):
     """Safely strip whitespace from strings, handling NaN values."""
-    if pd.notna(value):
-        return value.strip().lower()
-    return ""
+    if pd.isna(value) or value is None or str(value).strip() == '':
+        return ""
+    return value.strip().lower()
 
 def contains_us_locations(input_data, data):
     """Check if the input data contains any US-related locations."""
@@ -147,6 +155,10 @@ def build_state_lookup(data):
             code_to_coords[state_code] = (row['latitude'], row['longitude'])
     return code_to_coords
 
+def is_empty(value):
+    """Check if value is None, NaN, empty string, or only whitespace."""
+    return pd.isna(value) or str(value).strip() == '' or value == "nan"
+
 def find_lat_lon(row, data, state_lookup):
     """Find the most specific latitude/longitude for the given row."""
     country = safe_strip(row.get('country', ''))
@@ -156,7 +168,7 @@ def find_lat_lon(row, data, state_lookup):
     county = safe_strip(row.get('county', ''))
 
     # If only a country is provided, return the center coordinates of the country
-    if country and not state and not city and not county:
+    if country and is_empty(state) and is_empty(city) and is_empty(county):
         if country.lower() in {"united states", "usa", "us", "united states of america"}:
             country = "United States"
             print(f'Searching for {country}.')
@@ -168,7 +180,7 @@ def find_lat_lon(row, data, state_lookup):
             return result.iloc[0][['latitude', 'longitude']].values
 
     # If only a state is provided, return the center coordinates of the state
-    if state and not city and not county:
+    if state and is_empty(city) and is_empty(county):
         # Convert state name to its fill name
         if state.lower() in STATE_CODES:
             state = STATE_CODES[state.lower()]
@@ -260,7 +272,26 @@ def clean_month_column(data):
 
     return data
 
-def merge_summary_with_metadata(metadata, summary_file, output_file):
+def make_allele_column(df_sub, gene_prefix):
+    """
+    Creates a Series of allele hits for a given gene (e.g. NDM, VIM, IMP).
+    Returns None if no matches exist anywhere in any row for that gene.
+    """
+    # columns that contain the gene prefix in the name
+    gene_cols = [c for c in df_sub.columns if gene_prefix in c and c != 'WGS_ID']
+    print(f"Found columns for {gene_prefix}: {gene_cols}")
+
+    def get_alleles(row):
+        present_cols = []
+        for col in gene_cols:
+            val = row[col]
+            if pd.notna(val) and str(val).strip() != '':
+                present_cols.append(col.split('_')[0])  # Extract allele name from column name
+        return ','.join(present_cols) if present_cols else ''
+
+    return df_sub.apply(get_alleles, axis=1)
+
+def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB):
     """Merge GRiPHin_Summary.tsv with metadata file on 'WGS_ID' and save the result."""
     # Load metadata and summary files
     summary = pd.read_csv(summary_file, sep='\t')
@@ -271,9 +302,48 @@ def merge_summary_with_metadata(metadata, summary_file, output_file):
     else:
         organism_column = 'FastANI_Organism'
 
-    # Select relevant columns from the GRiPHin summary file
-    summary_subset = summary[['WGS_ID', organism_column, 'Primary_MLST', 'Secondary_MLST']]
+    # add big 5 genes
+    # 1. Identify the column range between AR_Database and HV_Database (inclusive)
+    cols = list(summary.columns)
 
+    # Subset: WGS_ID + columns between AR_Database and HV_Database
+    subset_cols = ['WGS_ID'] + cols[cols.index('AR_Database'):cols.index('HV_Database')+1]
+    sub = summary[subset_cols]
+    gene_allele_cols = []
+
+    # 2. Create allele columns for NDM, VIM, IMP on the original dataframe
+    # 2a get list of big 5 genes
+    columns_to_highlight = []
+    all_genes = sub.columns.tolist()
+    big5_keep, big5_oxa_keep= find_big_5(BLDB)
+    # loop through column names and check if they contain a gene we want highlighted. Then add to highlight list if they do. 
+    for gene in all_genes: # loop through each gene in the dataframe of genes found in all isolates
+        gene_name = gene.split('_(')[0] # remove drug name for matching genes
+        drug = gene.split('_(')[1] # keep drug name to add back later
+        if "-like" in gene_name:
+            gene_name = gene_name.split('_bla')[0] # remove blaOXA-1-like name for matching genes -- just extra stuff that doesn't allow complete match
+        # make sure we have a complete match for oxa 48/23/24/58/143 genes and oxa 48/23/24/58/143-like genes
+        if "OXA" in gene_name: #check for complete blaOXA match
+            [ columns_to_highlight.append(gene_name + "_(" + drug) for big5_oxa in big5_oxa_keep if gene_name == big5_oxa ]
+        else: # for "blaIMP", "blaVIM", "blaNDM", and "blaKPC", this will take any thing with a matching substring to these
+            [ columns_to_highlight.append(gene_name + "_(" + drug) for big5 in big5_keep if search(big5, gene_name) ]
+    print(CYELLOW + "\nhighlighting colums:", columns_to_highlight, CEND)
+
+    for gene in ['NDM', 'VIM', 'IMP', 'KPC']:
+        print(f"Searching for '{gene}'.")
+        col_name = f'{gene}_Alleles'
+        result = make_allele_column(sub, gene)
+        if result.eq("").all():
+            pass  # No matches found for this gene; do not add column
+        else:
+            summary[col_name] = result
+            gene_allele_cols.append(col_name)  # remember this column exists
+
+    # Select relevant columns from the GRiPHin summary file
+    basecols = ['WGS_ID', organism_column, 'Primary_MLST', 'Secondary_MLST']
+    # Only include gene_alleles columns that are actually present in summary
+    existing_gene_cols = [c for c in gene_allele_cols if c in summary.columns]
+    summary_subset = summary[ basecols + existing_gene_cols]
     # Merge on 'WGS_ID'
     merged_data = pd.merge(summary_subset, metadata, left_on='WGS_ID', right_on='sample', how='inner')
     #we don't need to ID columns so drop one
@@ -337,7 +407,6 @@ def reverse_country_codes(metadata):
     metadata['country'] = metadata['country'].apply(get_full_country_name)
     return metadata
 
-
 def standardize_location_columns(df):
     """
     Standardize column names in the DataFrame for location-based columns.
@@ -370,8 +439,7 @@ def standardize_location_columns(df):
     df = df.rename(columns=new_column_names)
     return df
 
-
-def main(input_file, output_file, log_file, griphin_tsv):
+def main(input_file, output_file, log_file, griphin_tsv, BLDB):
     """Process the data by adding latitude, longitude, cleaning month, and converting dates."""
     # Load input data
     input_data = pd.read_csv(input_file, sep='\t')
@@ -491,7 +559,7 @@ def main(input_file, output_file, log_file, griphin_tsv):
                 # Convert and update the date format for each date-related column
                 input_data.loc[idx, date_col] = convert_date_format(date_str)
 
-    merge_summary_with_metadata(input_data, griphin_tsv, output_file)
+    merge_summary_with_metadata(input_data, griphin_tsv, output_file, BLDB)
 
     # Write errors to log file
     with open(log_file, 'w') as f:
@@ -500,4 +568,4 @@ def main(input_file, output_file, log_file, griphin_tsv):
 
 if __name__ == "__main__":
     args = parseArgs()
-    main(args.input, args.output, args.log, args.griphin_tsv)
+    main(args.input, args.output, args.log, args.griphin_tsv, args.bldb)

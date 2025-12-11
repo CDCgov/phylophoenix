@@ -6,9 +6,11 @@ process GRIPHIN {
     path(sample_sheet) // -s . This is an empty list when no samplesheet is passed
     path(db) // -a
     val(prefix) // -o
-    path(blind_list) // -b
+    path(control_list) //
+    val(phx_version)
     val(coverage)
     val(entry)
+    path(bldb)
     //val(shigapass_detected)
 
     output:
@@ -26,7 +28,7 @@ process GRIPHIN {
     } else {
         error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
     }
-    def blind_names   = blind_list ? "--blind_list ${blind_list}" : ""
+    def blind_names   = control_list ? "--control_list ${control_list}" : ""
     def report_prefix = prefix ? "--output ${prefix}" : ""
     def phoenix       = entry ? "" : "--phoenix" // tells griphin in the run was a CDC (i.e. -entry CDC_PHOENIX) one or standard
     // get container info
@@ -37,12 +39,12 @@ process GRIPHIN {
         mv ${sample_sheet} Directory_samplesheet.csv
     fi
 
-    ${ica}GRiPHin.py --ar_db ${db} --coverage ${coverage} --samplesheet Directory_samplesheet.csv ${blind_names} ${phoenix} ${report_prefix}
+    ${ica}GRiPHin.py --ar_db ${db} --bldb ${bldb} --phx_version ${phx_version} --coverage ${coverage} --samplesheet Directory_samplesheet.csv ${blind_names} ${phoenix} ${report_prefix}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-       python: \$(python --version | sed 's/Python //g')
-       phoenix_base_container: ${container}
+        python: \$(python --version | sed 's/Python //g')
+        phoenix_base_container: ${container}
     END_VERSIONS
     """
 }

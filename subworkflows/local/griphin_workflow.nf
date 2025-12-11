@@ -10,6 +10,7 @@ workflow GRIPHIN_WORKFLOW {
     take:
         input_samplesheet_path // channel: tuple val(meta), path('*.json'): FASTP_TRIMD.out.json --> PHOENIX_EXQC.out.paired_trmd_json
         indir
+        bldb
 
     main:
         ch_versions = Channel.empty() // Used to collect the software versions
@@ -22,13 +23,13 @@ workflow GRIPHIN_WORKFLOW {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // Create report
                 GRIPHIN (
-                    input_samplesheet_path, params.ardb, params.prefix, blind_path, params.coverage, params.cdc
+                    input_samplesheet_path, params.ardb, params.prefix, blind_path, workflow.manifest.version, params.coverage, params.cdc, bldb
                 )
                 ch_versions = ch_versions.mix(GRIPHIN.out.versions)
             } else {
                 // Create report
                 GRIPHIN (
-                    input_samplesheet_path, params.ardb, params.prefix, [], params.coverage, params.cdc
+                    input_samplesheet_path, params.ardb, params.prefix, [], workflow.manifest.version, params.coverage, params.cdc, bldb
                 )
                 ch_versions = ch_versions.mix(GRIPHIN.out.versions)
             }
@@ -50,13 +51,13 @@ workflow GRIPHIN_WORKFLOW {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // Create report
                 GRIPHIN (
-                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, blind_path, params.coverage, params.cdc
+                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, blind_path, workflow.manifest.version, params.coverage, params.cdc, bldb
                 )
                 ch_versions = ch_versions.mix(GRIPHIN.out.versions)
             } else {
                 // Create report
                 GRIPHIN (
-                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, [], params.coverage, params.cdc
+                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, [], workflow.manifest.version, params.coverage, params.cdc, bldb
                 )
                 ch_versions = ch_versions.mix(GRIPHIN.out.versions)
             }

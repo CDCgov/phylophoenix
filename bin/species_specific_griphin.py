@@ -1,19 +1,39 @@
 #!/usr/bin/env python3
 
 import pandas as pd
+import numpy as np
 import re
+import os
 
+def try_paths(path1, path2):
+    """Function to try the first path, then fall back to second path if file doesn't exist"""
+    if os.path.exists(path1):
+        return path1
+    elif os.path.exists(path2):
+        return path2
+    else:
+        return path1  # Return the first path even if it doesn't exist, for consistent error handling
+
+##################################  Centar functions   #########################################
 def transform_value(value):
     # Split the value into components
-    if value != "NA|NA|NA":
+    if (isinstance(value, float) and np.isnan(value)):
+        return ""
+    elif value != "NA|NA|NA" and value != "[NA|NA|NA]":
         parts = value.split('|')
         if len(parts) == 3:
             # Reorder and format the components into the desired format
-            nuc_identity = parts[0][:-2]  # Extract the number from '98NT'
+            nuc_identity = parts[0][:-2].replace("[","")   # Extract the number from '98NT'
             aa_identity = parts[1][:-2]   # Extract the number from '98AA'
-            coverage = parts[2]           # Extract the coverage number
+            coverage = parts[2].replace("COV]","")           # Extract the coverage number
             # Format the new string
-            return f'[{coverage}NT/{aa_identity}AA/{nuc_identity}]G'
+            return f'[{nuc_identity}NT/{aa_identity}AA/{coverage}]G'
+        elif len(parts) == 2:
+            # Reorder and format the components into the desired format
+            nuc_identity = parts[0][:-2].replace("[","")   # Extract the number from '98NT'
+            coverage = parts[1].replace("COV[]","")           # Extract the coverage number
+            # Format the new string
+            return f'[{nuc_identity}NT/{coverage}]G'
     else:
         return ""
     return value
@@ -104,6 +124,23 @@ def double_check_taxa_id(shiga_df, phx_df):
     # Apply the custom function to fill the Taxa_ID column
     merged_df['Final_Taxa_ID'] = merged_df.apply(fill_taxa_id, axis=1)
     return merged_df
+
+# Define the custom function to update the Taxa_ID based on conditions
+def fill_taxa_id(row):
+    if row['Taxa_Source'] == 'ANI_REFSEQ':
+        return row['FastANI_Organism']
+    elif row['Taxa_Source'] == 'kraken2_wtasmbld':
+        genus = row['Kraken_ID_WtAssembly_%'].split(" ")[0]
+        species = row['Kraken_ID_WtAssembly_%'].split(" ")[2]
+        return genus + " " + species
+    elif row['Taxa_Source'] == 'kraken2_trimmed':
+        genus = row['Kraken_ID_Raw_Reads_%'].split(" ")[0]
+        species = row['Kraken_ID_Raw_Reads_%'].split(" ")[2]
+        return genus + " " + species
+    elif row['Taxa_Source'] == 'ShigaPass':
+        return row['ShigaPass_Organism']
+    else:
+        return 'Unknown'  # Default case if no condition matches
 
 #def main():
 #    directory = "/scicomp/groups/OID/NCEZID/DHQP/CEMB/Jill_DIR/PHX_v2/v2.2.0-dev/centar/cdc_centar_newer"

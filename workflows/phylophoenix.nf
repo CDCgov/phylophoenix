@@ -87,7 +87,7 @@ workflow PHYLOPHOENIX {
         geonames_ch = Channel.fromPath("${baseDir}/assets/databases/*_geolocation.txt.xz").collect()
         // Create report
         GRIPHIN_WORKFLOW (
-            input_samplesheet_path, indir
+            input_samplesheet_path, indir, params.bldb
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
         // If you pass --no_all then samples will not be run all together

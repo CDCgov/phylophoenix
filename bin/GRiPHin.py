@@ -16,7 +16,7 @@ from xlsxwriter.utility import xl_rowcol_to_cell
 import csv
 from Bio import SeqIO
 from itertools import chain
-import species_specific_griphin
+from species_specific_griphin import try_paths, clean_and_format_centar_dfs, create_centar_combined_df, transform_value, create_shiga_df, double_check_taxa_id, fill_taxa_id
 
 # Set display options to show all rows and columns
 #pd.set_option('display.max_rows', None)  # Show all rows
@@ -34,9 +34,11 @@ def parseArgs(args=None):
     parser = argparse.ArgumentParser(description='Script to generate a PhoeNix summary excel sheet.')
     parser.add_argument('-s', '--samplesheet', default=None, required=False, dest='samplesheet', help='PHoeNIx style samplesheet of sample,directory in csv format. Directory is expected to have PHoeNIx stype output.')
     parser.add_argument('-d', '--directory', default=None, required=False, dest='directory', help='If a directory is given rather than samplesheet GRiPHin will create one for all samples in the directory.')
-    parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
+    parser.add_argument('-c', '--control_list', default=None, required=False, dest='control_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
+    parser.add_argument('-b', '--bldb', default=None, required=False, dest='bldb', help='.')
     parser.add_argument('-a', '--ar_db', default=None, required=True, dest='ar_db', help='AR Gene Database file that is used to confirm srst2 gene names are the same as GAMMAs output.')
     parser.add_argument('-o', '--output', default="", required=False, dest='output', help='Name of output file default is GRiPHin_Summary.xlsx.')
+    parser.add_argument('--phx_version', default="Unknown", required=False, dest='phx_version', help='The version of phx used to produce GRiPHin_Summary row for the sample.')
     parser.add_argument('--coverage', default=30, required=False, dest='set_coverage', help='The coverage cut off default is 30x.')
     parser.add_argument('--scaffolds', dest="scaffolds", default=False, action='store_true', help='Turn on with --scaffolds to keep samples from failing/warnings/alerts that are based on trimmed data. Default is off.')
     parser.add_argument('--phoenix', dest="phoenix", default=False, action='store_true', required=False, help='Use for -entry PHOENIX rather than CDC_PHOENIX, which is the default.')
@@ -47,6 +49,7 @@ def parseArgs(args=None):
 
 #set colors for warnings so they are seen
 CRED = '\033[91m'+'\nWarning: '
+CYELLOW = '\033[93m'
 CEND = '\033[0m'
 
 def Get_Parent_Folder(directory):
@@ -199,16 +202,18 @@ def get_gc_metrics(gc_file):
                 else:
                     gc_stdev = float((line.split("Species_GC_StDev: ",1)[1]).strip())
                     out_of_range_stdev = gc_stdev*2.58
-            elif "Sample_GC_Percent:" in line:
-                if "No Match Found" in line:
+            elif "Sample_GC_Percent:" in line or "NA" in line:
+                extracted_value = (line.split("Sample_GC_Percent: ",1)[1]).strip()
+                if "No Match Found" in extracted_value or extracted_value == "NA":
                     sample_gc="NA"
                 else:
-                    sample_gc = float((line.split("Sample_GC_Percent: ",1)[1]).strip())
+                    sample_gc = float(extracted_value)
             elif "Species_GC_Mean:" in line:
-                if "No Match Found" in line:
+                extracted_value = (line.split("Species_GC_Mean: ",1)[1]).strip()
+                if "No Match Found" in extracted_value or extracted_value == "-":
                     species_gc_mean="NA"
                 else:
-                    species_gc_mean = float((line.split("Species_GC_Mean: ",1)[1]).strip())
+                    species_gc_mean = float(extracted_value)
             else:
                 pass
     return gc_stdev, sample_gc, out_of_range_stdev, species_gc_mean
@@ -995,13 +1000,15 @@ def Append_Lists(data_location, parent_folder, sample_name, Q30_R1_per, Q30_R2_p
         return data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L, \
         Scaffold_Count_L, busco_lineage_L, percent_busco_L, gc_L, assembly_ratio_L, assembly_stdev_L, tax_method_L, QC_result_L, QC_reason_L, MLST_scheme_1_L, MLST_scheme_2_L, MLST_type_1_L, MLST_type_2_L, MLST_alleles_1_L, MLST_alleles_2_L, MLST_source_1_L, MLST_source_2_L
 
-def Create_df(phoenix, data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L,
+def Create_df(phx_version, phoenix, data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L,
 Scaffold_Count_L, busco_lineage_L, percent_busco_L, gc_L, assembly_ratio_L, assembly_stdev_L, tax_method_L, QC_result_L, QC_reason_L, MLST_scheme_1_L, MLST_scheme_2_L, MLST_type_1_L, MLST_type_2_L, MLST_alleles_1_L, MLST_alleles_2_L, MLST_source_1_L, MLST_source_2_L):
+    phx_version_L = [str(phx_version)] * len(Sample_Names)
     #combine all metrics into a dataframe
     if phoenix == True:
         data = {'WGS_ID'             : Sample_Names,
         'Parent_Folder'              : parent_folder_L,
         'Data_Location'              : data_location_L,
+        'PHX_Version'                : phx_version_L,
         'Minimum_QC_Check'           : QC_result_L,
         'Minimum_QC_Issues'          : QC_reason_L,
         'Warnings'                   : warnings_L,
@@ -1038,6 +1045,7 @@ Scaffold_Count_L, busco_lineage_L, percent_busco_L, gc_L, assembly_ratio_L, asse
         data = {'WGS_ID'             : Sample_Names,
         'Parent_Folder'              : parent_folder_L,
         'Data_Location'              : data_location_L,
+        'PHX_Version'                : phx_version_L,
         'Minimum_QC_Check'           : QC_result_L,
         'Minimum_QC_Issues'          : QC_reason_L,
         'Warnings'                   : warnings_L,
@@ -1207,25 +1215,44 @@ def add_srst2(ar_df, srst2_ar_df):
     ar_combined_ordered_df = order_ar_gene_columns(ar_combined_df)
     return ar_combined_ordered_df
 
-def big5_check(final_ar_df):
+def find_big_5(BLDB):
+    df = pd.read_csv(BLDB)
+    # Filter rows where 'Protein_name' contains any of the substrings
+    big5_genes = ["KPC", "IMP", "NDM", "OXA", "VIM"]
+    filtered_df = df[df["Protein name"].str.contains('|'.join(big5_genes), case=False, na=False)]
+    # \xa0 is from hyperlinks as there is not normal spaces # Further filter for 'carbapenemase' or 'IR carbapenemase' in the assumed column (e.g., "Classification")
+    final_df = filtered_df[filtered_df["Functional information"].isin(["carbapenemase", "IR carbapenemase", "carbapenemase\xa0view", "IR carbapenemase\xa0view"])]
+    # Condition to check if "Protein_name" contains "OXA"
+    oxa_condition = final_df["Protein name"].str.contains("OXA", case=False, na=False)
+    # Condition to filter "Subfamily" only for rows where "Protein_name" contains "OXA"
+    subfamily_condition = final_df["Subfamily"].isin(["OXA-48-like", "OXA-23-like", "OXA-24-like", "OXA-58-like", "OXA-143-like"])
+    # Keep all rows where "Protein_name" does NOT contain "OXA"
+    non_oxa_rows = final_df[~oxa_condition]
+    # Keep only filtered rows where "Protein_name" contains "OXA" and "Subfamily" is in the list
+    filtered_oxa_rows1 = final_df[oxa_condition & subfamily_condition]
+    ###########print(filtered_oxa_rows1)
+    filtered_oxa_rows = filtered_oxa_rows1[~(filtered_oxa_rows1["Natural (N) or Acquired (A)"].str.contains(r"N\s\(", na=False) & ~filtered_oxa_rows1["Subfamily"].str.contains("OXA-48-like", na=False))]
+    # Combine both DataFrames
+    filtered_final_df = pd.concat([non_oxa_rows, filtered_oxa_rows])
+    # Select the relevant columns and drop complete duplicates
+    unique_proteins = final_df[["Protein name", "Alternative protein names"]].drop_duplicates()
+    # Flatten into a list and remove NaN values
+    protein_list = unique_proteins.values.flatten()
+    protein_list = [protein for protein in protein_list if pd.notna(protein)]  # Remove NaNs
+    # Separate protein_list into two lists
+    oxa_proteins = [protein for protein in protein_list if "OXA" in protein]
+    non_oxa_proteins = [protein for protein in protein_list if "OXA" not in protein]
+    return non_oxa_proteins, oxa_proteins
+
+def big5_check(final_ar_df, BLDB):
     """"Function that will return list of columns to highlight if a sample has a hit for a big 5 gene."""
     columns_to_highlight = []
+    #if (is_combine):
+    #    final_ar_df = final_ar_df.drop(['AR_Database','UNI'], axis=1)
+    #else:
     final_ar_df = final_ar_df.drop(['AR_Database','WGS_ID'], axis=1)
     all_genes = final_ar_df.columns.tolist()
-    big5_keep = [ "blaIMP", "blaVIM", "blaNDM", "blaKPC"] # list of genes to highlight
-    blaOXA_48_like = [ "48", "54", "162", "181", "199", "204", "232", "244", "245", "247", "252", "370", "416", "436", "438", "439", "484", "505", "514", "515", "517", "519", "535", "538", "546", "547", "566", "567", "731", \
-    "788", "793", "833", "894", "918", "920", "922", "923", "924", "929", "933", "934", "1038", "1039", "1055", "1119", "1146", "1167","1181","1200","1201","1205","1207","1211","1212","1213" ]
-    # Acquired OXA families 23, 24/40, 58, 143, 235
-    blaOXA_23_like = [ "23", "54", "162", "181", "199", "204", "232", "244", "245", "247", "252", "370", "416", "436", "438", "439", "484", "505", "514", "515", "517", "519", "535", "538", "546", "547", "566", "567", \
-    "731", "788", "793", "833", "894", "918", "920", "922", "923", "924", "929", "933", "934", "1038", "1039", "1055", "1119", "1146", "1167","1181","1200","1201","1205","1207","1211","1212","1213" ]
-    blaOXA_24_40_like = [ "24","40","25","26","72","139","160","207","437","653", "897","1040","1081" ]
-    blaOXA_58_like = [ "58", "96","97","164","397","420","512","1178" ]
-    blaOXA_143_like = [ "143","182","231","253","255","499","649","825","945","1139","1182" ]
-    blaOXA_235_like = [ "134","235","236","237","276","278","282","283","284","285","335","360","361","362","363","496","537","646","647","648","915","991","1005","1110","1111","1112","1116" ]
-    # combine lists of all genes we want to highlight
-    blaOXAs = [f"{num}" for num in blaOXA_48_like + blaOXA_23_like + blaOXA_24_40_like + blaOXA_58_like + blaOXA_143_like + blaOXA_235_like]
-    # remove list of genes that look like big 5 but don't have activity
-    big5_drop = [ "blaKPC-62", "blaKPC-63", "blaKPC-64", "blaKPC-65", "blaKPC-66", "blaKPC-72", "blaKPC-73", "163", "405"]
+    big5_keep, big5_oxa_keep= find_big_5(BLDB)
     # loop through column names and check if they contain a gene we want highlighted. Then add to highlight list if they do. 
     for gene in all_genes: # loop through each gene in the dataframe of genes found in all isolates
         if gene == 'No_AR_Genes_Found':
@@ -1233,20 +1260,17 @@ def big5_check(final_ar_df):
         else:
             gene_name = gene.split('_(')[0] # remove drug name for matching genes
             drug = gene.split('_(')[1] # keep drug name to add back later
-            # make sure we have a complete match for 48 and 48-like genes
-            if gene_name.startswith("blaOXA"): #check for complete blaOXA match
-                [ columns_to_highlight.append(gene_name + "_(" + drug) for big5_keep_gene in blaOXAs if gene_name == big5_keep_gene ]
+            if "-like" in gene_name:
+                gene_name = gene_name.split('_bla')[0] # remove blaOXA-1-like name for matching genes -- just extra stuff that doesn't allow complete match
+            # make sure we have a complete match for oxa 48/23/24/58/143 genes and oxa 48/23/24/58/143-like genes
+            if "OXA" in gene_name: #check for complete blaOXA match
+                [ columns_to_highlight.append(gene_name + "_(" + drug) for big5_oxa in big5_oxa_keep if gene_name == big5_oxa ]
             else: # for "blaIMP", "blaVIM", "blaNDM", and "blaKPC", this will take any thing with a matching substring to these
-                for big5 in big5_keep:
-                    if search(big5, gene_name): #search for big5 gene substring in the gene name
-                        columns_to_highlight.append(gene_name + "_(" + drug)
-    #loop through list of genes to drop and removed if they are in the highlight list
-    for bad_gene in big5_drop:
-        #search for big5 gene substring in the gene name and remove if it is
-        [columns_to_highlight.remove(gene) for gene in columns_to_highlight if bad_gene in gene]
+                [ columns_to_highlight.append(gene_name + "_(" + drug) for big5 in big5_keep if search(big5, gene_name) ]
+    print(CYELLOW + "\nhighlighting colums:", columns_to_highlight, CEND)
     return columns_to_highlight
 
-def Combine_dfs(df, ar_df, pf_df, hv_df, srst2_ar_df, phoenix):
+def Combine_dfs(df, ar_df, pf_df, hv_df, srst2_ar_df, phoenix, BLDB):
     hv_cols = list(hv_df)
     pf_cols = list(pf_df)
     ar_cols = list(ar_df)
@@ -1269,7 +1293,7 @@ def Combine_dfs(df, ar_df, pf_df, hv_df, srst2_ar_df, phoenix):
         final_ar_df = add_srst2(ar_df, srst2_ar_df)
     ar_max_col = final_ar_df.shape[1] - 1 #remove one for the WGS_ID column
     # now we will check for the "big 5" genes for highlighting later.
-    columns_to_highlight = big5_check(final_ar_df)
+    columns_to_highlight = big5_check(final_ar_df, BLDB)
     # combining all dataframes
     final_df = pd.merge(df, final_ar_df, how="left", on=["WGS_ID","WGS_ID"])
     final_df = pd.merge(final_df, hv_df, how="left", on=["WGS_ID","WGS_ID"])
@@ -1347,8 +1371,12 @@ def write_to_excel(set_coverage, output, df, qc_max_col, ar_gene_count, pf_gene_
     cell_format_darkgrey = workbook.add_format({'bg_color': '#808B96', 'font_color': '#000000', 'bold': True})
     # Headers
     #worksheet.set_column('A1:A1', None, cell_format_light_blue) #make summary column blue, #use for only 1 column in length
-    worksheet.merge_range('A1:C1', "PHoeNIx Summary", cell_format_light_blue)
-    worksheet.merge_range('D1:R1', "QC Metrics", cell_format_grey_blue)
+    if "PHX_Version" in df.columns:
+        worksheet.merge_range('A1:D1', "PHoeNIx Summary", cell_format_light_blue)
+        worksheet.merge_range('E1:S1', "QC Metrics", cell_format_grey_blue)
+    else: # allow for backward compatibility with versions <2.2.0
+        worksheet.merge_range('A1:C1', "PHoeNIx Summary", cell_format_light_blue)
+        worksheet.merge_range('D1:R1', "QC Metrics", cell_format_grey_blue)
     #taxa columns 
     if phoenix == True: #for non-CDC entry points
         if shigapass == True:
@@ -1523,7 +1551,7 @@ def main():
             directory = row[1]
             # check if species specific information is present
             if args.shigapass == True:
-                shiga_df = species_specific_griphin.create_shiga_df(directory, sample_name, shiga_df)
+                shiga_df = create_shiga_df(directory, sample_name, shiga_df)
             if args.centar == True:
                     centar_df = create_centar_combined_df(directory, sample_name)
                     centar_dfs.append(centar_df)
@@ -1540,7 +1568,7 @@ def main():
             data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L, \
             Scaffold_Count_L, busco_lineage_L, percent_busco_L, gc_L, assembly_ratio_L, assembly_stdev_L, tax_method_L, QC_result_L, QC_reason_L, MLST_scheme_1_L, MLST_scheme_2_L, MLST_type_1_L, MLST_type_2_L, MLST_alleles_1_L, MLST_alleles_2_L, MLST_source_1_L, MLST_source_2_L)
     # combine all lists into a dataframe
-    df = Create_df(args.phoenix, data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L, \
+    df = Create_df(args.phx_version, args.phoenix, data_location_L, parent_folder_L, Sample_Names, Q30_R1_per_L, Q30_R2_per_L, Total_Raw_Seq_bp_L, Total_Seq_reads_L, Paired_Trimmed_reads_L, Total_trim_Seq_reads_L, Trim_kraken_L, Asmbld_kraken_L, Coverage_L, Assembly_Length_L, Species_Support_L, fastani_organism_L, fastani_ID_L, fastani_coverage_L, warnings_L, alerts_L, \
     Scaffold_Count_L, busco_lineage_L, percent_busco_L, gc_L, assembly_ratio_L, assembly_stdev_L, tax_method_L, QC_result_L, QC_reason_L, MLST_scheme_1_L, MLST_scheme_2_L, MLST_type_1_L, MLST_type_2_L, MLST_alleles_1_L , MLST_alleles_2_L, MLST_source_1_L, MLST_source_2_L)
     if args.shigapass == True:
         df = double_check_taxa_id(shiga_df, df)
@@ -1552,10 +1580,10 @@ def main():
     (qc_max_row, qc_max_col) = df.shape
     pf_max_col = pf_df.shape[1] - 1 #remove one for the WGS_ID column
     hv_max_col = hv_df.shape[1] - 1 #remove one for the WGS_ID column
-    final_df, ar_max_col, columns_to_highlight, final_ar_df, pf_db, ar_db, hv_db = Combine_dfs(df, ar_df, pf_df, hv_df, srst2_ar_df, args.phoenix)
+    final_df, ar_max_col, columns_to_highlight, final_ar_df, pf_db, ar_db, hv_db = Combine_dfs(df, ar_df, pf_df, hv_df, srst2_ar_df, args.phoenix, args.bldb)
     # Checking if there was a control sheet submitted
-    if args.blind_list !=None:
-        final_df = blind_samples(final_df, args.blind_list)
+    if args.control_list !=None:
+        final_df = blind_samples(final_df, args.control_list)
     else:
         final_df = final_df
     write_to_excel(args.set_coverage, args.output, final_df, qc_max_col, ar_max_col, pf_max_col, hv_max_col, columns_to_highlight, final_ar_df, pf_db, ar_db, hv_db, args.phoenix, args.shigapass)
