@@ -36,7 +36,7 @@ include { MAKE_SNV                     } from '../../modules/local/snvphyl/make_
 ========================================================================================
 */
 
-include { INPUT_CHECK                  } from './input_check'
+//include { INPUT_CHECK                  } from './input_check'
 include { FASTQC                       } from '../../modules/nf-core/fastqc/main'
 
 /*
@@ -57,13 +57,11 @@ def filter_and_define_tree(input_meta, snvAlignment, consolidated_bcfs) {
     if (isolate_num > 2) {
         return [ meta, snvAlignment ]
     } else {
-        print("its me")
-         return [ meta, []]
+        return [ meta, []]
     }
 }
 
 def check_if_empty(phylm, empty_ch){
-    print("got here")
     //when phylm is empty then empty_ch will be [seq_type:All_Isolates]
     def tree_ch = phylm.empty ? empty_ch : phylm
     if (tree_ch.startsWith("seq_type:")){
@@ -79,7 +77,7 @@ def filter_and_define_tree2(input_meta, snvAlignment, consolidated_bcfs, phyloge
     if (isolate_num > 2) {
         return [ meta, phylogeneticTree ]
     } else {
-         return [ meta, []]
+        return [ meta, []]
     }
 }
 
@@ -91,27 +89,17 @@ def filter_and_define_tree2(input_meta, snvAlignment, consolidated_bcfs, phyloge
 
 workflow SNVPHYL {
     take:
-        samplesheet // GRIPHIN.out.griphin_samplesheet
+        //samplesheet // GRIPHIN.out.griphin_samplesheet
+        reads       // INPUT_CHECK.out.reads
         reference   // GET_REFERENCE_SEQ.out.reference
+        window_size  // params.window_size
 
     main:
         ch_versions = Channel.empty() // Used to collect the software versions
 
-        //This helps convert what was given to griphin to a sample sheet with the paths to fastq files
-        CONVERT_INPUT (
-            samplesheet
-        )
-        ch_versions = ch_versions.mix(CONVERT_INPUT.out.versions)
-
-        // SUBWORKFLOW: Read in samplesheet, validate and stage input files
-        INPUT_CHECK (
-            CONVERT_INPUT.out.updated_samplesheet
-        )
-        ch_versions = ch_versions.mix(INPUT_CHECK.out.versions)
-
         // Run FastQC
         FASTQC (
-            INPUT_CHECK.out.reads
+            reads
         )
         ch_versions = ch_versions.mix(FASTQC.out.versions.first())
 
@@ -130,21 +118,25 @@ workflow SNVPHYL {
         )
         ch_versions = ch_versions.mix(FIND_REPEATS.out.versions)
 
-        // Try as I might nextflow foiled me at every attempt to get it to merge on seq_type without removing the id, so I have relented and removed it and then added it back after merging. 
+        /*/ Try as I might nextflow foiled me at every attempt to get it to merge on seq_type without removing the id, so I have relented and removed it and then added it back after merging. 
         // need to use "combine" to allow multiple uses of INDEXING.out.ref_indexes without depletion. This approach effectively mimics a "non-consuming join" based on seq_type.And we filter to get the correct things after.
-        smalt_ch = INPUT_CHECK.out.reads.combine(INDEXING.out.ref_indexes).filter{ meta_reads, reads, meta_ref_index, ref_fai, ref_sma, ref_smi -> 
+        smalt_ch = reads.combine(INDEXING.out.ref_indexes).filter{ meta_reads, reads, meta_ref_index, ref_fai, ref_sma, ref_smi -> 
             // Only keep pairs where `seq_type` matches
             meta_reads.seq_type == meta_ref_index.seq_type}.map { meta_reads, reads, meta_ref_index, ref_fai, ref_sma, ref_smi ->
                 def meta = [:]
                 meta.seq_type = meta_reads.seq_type
                 meta.id = reads[0].getName().replaceAll("_1.trim.fastq.gz", "")
                 // Format the output as required
-                [ meta, reads, ref_fai, ref_sma, ref_smi ]}
+                [ meta, reads, ref_fai, ref_sma, ref_smi ]}*/
+
+        smalt_ch = reads.map{ meta, fastqs -> tuple(meta.seq_type, fastqs, meta.id) }
+                .combine(INDEXING.out.ref_indexes.map{ meta, ref_fai, ref_sma, ref_smi -> tuple(meta.seq_type, ref_fai, ref_sma, ref_smi) }, by: 0)
+                .map{ seq_type, fastqs, id, ref_fai, ref_sma, ref_smi -> tuple([seq_type: seq_type, id: id], fastqs, ref_fai, ref_sma, ref_smi)}
 
         //3. smalt map process takes 2 input channels as arguments
         SMALT_MAP (
             smalt_ch
-       )
+        )
         ch_versions = ch_versions.mix(SMALT_MAP.out.versions)
 
         //4. sorting and indexing bam files from smalt process takes 1 input channel as an arguments
@@ -161,7 +153,7 @@ workflow SNVPHYL {
             // Format as required: [ [meta], sorted_bams_file1, sorted_bams_file2, ... ]
             [meta] + [sorted_bams_files]}
 
-        //5. Generating mapping_quality.txt file
+        /*/5. Generating mapping_quality.txt file
         GENERATE_LINE_1 (
             sort_indexed_bams_ch
         )
@@ -174,11 +166,33 @@ workflow SNVPHYL {
             verifying_map_q_ch.map{ meta, sorted_bams, bam_lines_file -> [ meta, sorted_bams ]},
             verifying_map_q_ch.map{ meta, sorted_bams, bam_lines_file -> bam_lines_file}.splitText()
         )
+        ch_versions = ch_versions.mix(VERIFYING_MAP_Q.out.versions)*/
+
+        // Convert BAM files to command-line argument string: "--bam bam1=./file1_sorted.bam --bam bam2=./file2_sorted.bam ..."
+        // Added .sort to ensure bam files are always processed in same order, otherwise we get variations in mappingQuality.txt outputs
+        verifying_map_q_ch = sort_indexed_bams_ch.map { meta, sorted_bams_files ->
+            def bam_line = sorted_bams_files.flatten().sort { it.name }.withIndex().collect { bam, idx ->
+                "--bam bam${idx + 1}=./${bam.name}"
+            }.join(' ')
+            [meta, sorted_bams_files, bam_line]
+        }
+
+        // Write bam_line to file using collectFile (replaces GENERATE_LINE_1 output)
+        verifying_map_q_ch.map { meta, sorted_bams_files, bam_line ->
+            [meta.seq_type, bam_line]
+        }.collectFile() { seq_type, bam_line -> 
+            ["${seq_type}_bam_line.txt", bam_line]
+        }.set { bam_line_files }
+
+        VERIFYING_MAP_Q (
+            verifying_map_q_ch.map{ meta, sorted_bams, bam_line -> [ meta, sorted_bams ]},
+            verifying_map_q_ch.map{ meta, sorted_bams, bam_line -> bam_line}
+        )
         ch_versions = ch_versions.mix(VERIFYING_MAP_Q.out.versions)
         
         // Only keep pairs where `seq_type` matches and format the output as required
         sorted_bams_with_ch = SORT_INDEX_BAMS.out.sorted_bams.map{meta, sorted_bams -> [[seq_type:meta.seq_type], sorted_bams]}.combine(ref_indexed_channel)
-                .filter{ meta_bam, bam, meta_ref, ref_fai, ref_sma, ref_smi, reference -> meta_bam.seq_type == meta_ref.seq_type} 
+                .filter{ meta_bam, bam, meta_ref, ref_fai, ref_sma, ref_smi, reference -> meta_bam.seq_type == meta_ref.seq_type}
                 .map{meta_bam, bam, meta_ref, ref_fai, ref_sma, ref_smi, reference -> 
                         def meta = [:]
                         meta.seq_type = meta_bam.seq_type
@@ -232,7 +246,7 @@ workflow SNVPHYL {
 
         //11. consolidate variant calling files process takes 2 input channels as arguments
         CONSOLIDATE_BCFS (
-            combined_ch
+            combined_ch, window_size
         )
         ch_versions = ch_versions.mix(CONSOLIDATE_BCFS.out.versions)
         
@@ -269,10 +283,27 @@ workflow SNVPHYL {
 
         // Making string that looks like... this is needed for the next process
         //--consolidate_vcf 2021JQ-00457-WAPHL-M5130-211029=2021JQ-00457-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00459-WAPHL-M5130-211029=2021JQ-00459-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00460-WAPHL-M5130-211029=2021JQ-00460-WAPHL-M5130-211029_consolidated.bcf
+        consolidated_bcfs_with_line_ch = consolidated_bcfs_ch.map { meta, consolidated_bcfs_files ->
+            def consolidation_line = consolidated_bcfs_files.flatten().collect { bcf ->
+                def fname = bcf.name.replaceAll('_consolidated.bcf$', '')
+                "--consolidate_vcf ${fname}=${bcf.name}"
+            }.join(' ')
+            [meta, consolidation_line, consolidated_bcfs_files]
+        }
+
+        // Write consolidation_line to file using collectFile (replaces GENERATE_LINE_2 output)
+        consolidated_bcfs_with_line_ch.map{ meta, consolidation_line, consolidated_bcfs_files ->
+            [meta.seq_type, consolidation_line]
+        }.collectFile() { seq_type, consolidation_line ->
+            ["${seq_type}_consolidation_line.txt", consolidation_line]
+        }.set { consolidation_line_files }
+
+        /*/ Making string that looks like... this is needed for the next process
+        //--consolidate_vcf 2021JQ-00457-WAPHL-M5130-211029=2021JQ-00457-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00459-WAPHL-M5130-211029=2021JQ-00459-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00460-WAPHL-M5130-211029=2021JQ-00460-WAPHL-M5130-211029_consolidated.bcf
         GENERATE_LINE_2 (
             consolidated_bcfs_ch
         )
-        ch_versions = ch_versions.mix(GENERATE_LINE_2.out.versions)
+        ch_versions = ch_versions.mix(GENERATE_LINE_2.out.versions)*/
 
         // collect all sorted bcf index files and separate them into their own channel by ST
         consolidate_bcf_indexes_ch = CONSOLIDATE_BCFS.out.consolidated_bcf_index.map{ meta, consolidated_bcf_indexes -> [meta.seq_type, [meta, consolidated_bcf_indexes]] }  // Extract `seq_type` as key
@@ -281,9 +312,9 @@ workflow SNVPHYL {
             def consolidated_bcf_indexes_files = consolidated_bcf_indexes.collect { it[1] }  // Collect all BAM files for this `seq_type`
             // Format as required: [ [meta], [bcf_file1, bcf_file2, ...] ]
             [meta] + [consolidated_bcf_indexes_files]}
-        
+
         //get everything all together!
-        vcf2snv_alignment_ch = GENERATE_LINE_2.out.consolidation_line.join(consolidated_bcfs_ch, by: [0])
+        vcf2snv_alignment_ch = consolidated_bcfs_with_line_ch
                                 .join(CONSOLIDATE_FILTERED_DENSITY.out.new_invalid_positions.map{ meta, new_invalid_positions -> [[seq_type:meta.seq_type], new_invalid_positions]}, by: [0])
                                 .join(consolidate_bcf_indexes_ch, by: [0])
                                 .join(reference, by: [0])
@@ -291,7 +322,7 @@ workflow SNVPHYL {
         // Get line out of file we just made that has the --consolidate_vcf line...
         //13. consolidate variant calling files process takes 2 input channels as arguments
         VCF2SNV_ALIGNMENT ( 
-            vcf2snv_alignment_ch.map{ meta, consolidation_line, consolidated_bcfs, new_invalid_positions, consolidate_bcf_indexes, reference -> [ meta, consolidation_line ] }.splitText(),
+            vcf2snv_alignment_ch.map{ meta, consolidation_line, consolidated_bcfs, new_invalid_positions, consolidate_bcf_indexes, reference -> [ meta, consolidation_line ] },
             vcf2snv_alignment_ch.map{ meta, consolidation_line, consolidated_bcfs, new_invalid_positions, consolidate_bcf_indexes, reference -> [ meta, consolidated_bcfs ] },
             vcf2snv_alignment_ch.map{ meta, consolidation_line, consolidated_bcfs, new_invalid_positions, consolidate_bcf_indexes, reference -> [ meta, new_invalid_positions ] },
             vcf2snv_alignment_ch.map{ meta, consolidation_line, consolidated_bcfs, new_invalid_positions, consolidate_bcf_indexes, reference -> [ meta, reference ] },
@@ -301,7 +332,7 @@ workflow SNVPHYL {
 
         //14. Filter Stats
         FILTER_STATS (
-            VCF2SNV_ALIGNMENT.out.snvTable
+            VCF2SNV_ALIGNMENT.out.snvTable.filter{ meta, snvTable -> snvTable.readLines().size() > 1} // Filter out files that only have a header line (i.e., no SNVs differences)}
         )
         ch_versions = ch_versions.mix(FILTER_STATS.out.versions)
 
@@ -316,8 +347,10 @@ workflow SNVPHYL {
         ch_versions = ch_versions.mix(MAKE_SNV.out.versions)
 
         // Filter STs that don't have > 2 samples as tree building will fail, but we will want the SNV Matrix. If empty and create a placeholder empty channel to keep down stream processes happy.
-        phylm_ch = VCF2SNV_ALIGNMENT.out.snvAlignment.join(consolidated_bcfs_ch, by: [0]).filter{ meta, snvAlignment, consolidated_bcfs -> consolidated_bcfs.size() >= 2}
-            .map { meta, snvAlignment, consolidated_bcfs -> [meta, snvAlignment]}
+        phylm_ch = VCF2SNV_ALIGNMENT.out.snvAlignment.join(consolidated_bcfs_ch, by: [0])
+            .join(VCF2SNV_ALIGNMENT.out.emptyMatrix, by: [0])
+            .filter { meta, snvAlignment, consolidated_bcfs, emptyMatrix -> consolidated_bcfs.size() >= 2 && emptyMatrix.size() == 0 }
+            .map { meta, snvAlignment, consolidated_bcfs, emptyMatrix -> [meta, snvAlignment] }
 
         //16. Using phyml to build tree process takes 1 input channel as an argument
         PHYML (

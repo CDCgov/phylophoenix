@@ -1,7 +1,7 @@
 process MASH_DIST {
     tag "${meta.id}"
     label 'process_low'
-    container "staphb/mash:2.3"
+    container "staphb/mash@sha256:d55d03b75eb3a88bf0e93253487580f828f6a25b324a7c28fb8e4eaca0d5eebf"
 
     input:
     tuple val(meta), path(reference), path(query)
@@ -16,6 +16,7 @@ process MASH_DIST {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def container = task.container.toString() - "staphb/mash@"
     """
     mash \\
         dist \\
@@ -27,7 +28,7 @@ process MASH_DIST {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         mash: \$(mash --version 2>&1)
-        Mash Sketch: $reference
+        mash_container: ${container}
     END_VERSIONS
     """
 }

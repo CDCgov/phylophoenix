@@ -1,7 +1,7 @@
 process ASSET_CHECK {
     tag "${meta.seq_type}"
     label 'process_low'
-    container 'quay.io/jvhagey/phoenix:base_v2.1.0'
+    container 'quay.io/jvhagey/phoenix@sha256:ba44273acc600b36348b96e76f71fbbdb9557bb12ce9b8b37787c3ef2b7d622f'
 
     input:
     tuple val(meta), path(zipped_fasta)
@@ -12,6 +12,7 @@ process ASSET_CHECK {
 
     script:
     gunzip = zipped_fasta.toString() - '.gz'
+    def container_version = "base_v2.2.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
     """
     if [[ ${zipped_fasta} == *.gz ]]
@@ -23,6 +24,7 @@ process ASSET_CHECK {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
+        phoenix_base_container_tag: ${container_version}
         phoenix_base_container: ${container}
     END_VERSIONS
     """

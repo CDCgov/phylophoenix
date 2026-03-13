@@ -94,11 +94,20 @@ def quality_check(samplesheet, metadata, seq_type):
 
     # Load metadata files
     metadata = pd.read_csv(metadata, sep='\t')
+    #rename all columns to lowercase
+    metadata.columns = metadata.columns.str.lower()
     # Double-check that the first column of metadata is named 'sample' if not then rename it
     first_column = metadata.columns[0]
     if first_column != 'sample':
-        print(f"Renaming first column from '{first_column}' to 'sample'.")
-        metadata.rename(columns={first_column: 'sample'}, inplace=True)
+        # Check if 'sample' column exists anywhere in the dataframe
+        if 'sample' in metadata.columns:
+            print(f"Moving 'sample' column to first position.")
+            # Get all columns and reorder with 'sample' first
+            cols = ['sample'] + [col for col in metadata.columns if col != 'sample']
+            metadata = metadata[cols]
+        else:
+            print(f"Renaming first column from '{first_column}' to 'sample'.")
+            metadata.rename(columns={first_column: 'sample'}, inplace=True)
 
     # Find missing sample names (those in the samplesheet but not in metadata)
     metadata_wgs_ids = metadata['sample'].tolist()

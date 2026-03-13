@@ -17,9 +17,10 @@ process QUICKSNP {
     task.ext.when == null || task.ext.when
 
     script:
+    def ica = params.ica ? "python ${params.bin_dir}" : ""
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    QuickSNP.py \\
+    ${ica}QuickSNP.py \\
         --dm ${tsv} \\
         --outtree quicksnp_tree.nwk
     """

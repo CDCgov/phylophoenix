@@ -2,7 +2,8 @@
 process FREEBAYES {
     tag "${meta.id}_${meta.seq_type}"
     label 'process_low'
-    container "staphb/freebayes:1.3.6"
+    //1.3.10
+    container "staphb/freebayes@sha256:c97654c8bdc2f2f30ebdfff8507826bf8f58af18bbcd58d8c74dd77b76a2687d"
 
     input:
     tuple val(meta), path(sorted_bams),
@@ -15,6 +16,7 @@ process FREEBAYES {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def container = task.container.toString() - "staphb/freebayes@"
     """
 
     freebayes --bam ${sorted_bams} --ploidy 1 --fasta-reference ${ref_genome} --vcf ${prefix}_freebayes.vcf
@@ -22,6 +24,7 @@ process FREEBAYES {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         freebayes: \$(echo \$(freebayes --version 2>&1) | sed 's/version:\s*v//g' )
+        freebayes_container: ${container}
     END_VERSIONS
     """
 }

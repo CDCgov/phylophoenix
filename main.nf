@@ -31,6 +31,7 @@ include { PHYLOPHOENIX } from './workflows/phylophoenix'
 // WORKFLOW: Run main nf-core/phylophoenix analysis pipeline
 //
 workflow PHYLOPHOENIX_WF {
+    ch_versions = Channel.empty()
     //if you use --no_all phylophoenix assumes you want to do it by st and will set to true
     if (params.no_all==true) {
         by_st = true
@@ -41,11 +42,12 @@ workflow PHYLOPHOENIX_WF {
     if (params.input != null ) {  // if a samplesheet is passed
         // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 
         //input_samplesheet_path = Channel.fromPath(params.input, relative: true).map{ [it.toString().replaceAll(/([^\/]+$)/, "").replaceAll(/\/$/, "") ] }
-        input_samplesheet_path = Channel.fromPath(params.input, relative: true)
+        //input_samplesheet_path = Channel.fromPath(params.input, relative: true)
+        if (params.input) { input_samplesheet_path = file(params.input) }
         if (params.indir != null ) { //if samplesheet is passed and an input directory exit
             exit 1, 'You need EITHER an input samplesheet or a directory! Just pick one.' 
         } else { // if only samplesheet is passed check to make sure input is an actual file
-            indir = []
+            indir = null  //keep input directory null if not passed
             def checkPathParamList = [ params.input ]
             for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
         }
@@ -65,7 +67,7 @@ workflow PHYLOPHOENIX_WF {
     }
 
     main:
-        PHYLOPHOENIX ( input_samplesheet_path, indir, by_st )
+        PHYLOPHOENIX ( input_samplesheet_path, indir, by_st, ch_versions )
 }
 
 /*

@@ -215,34 +215,6 @@ def find_lat_lon(row, data, state_lookup):
     # If no specific match, return (None, None)
     return None, None
 
-def convert_date_format(date_str):
-    """Convert date to 'yyyy-MM-dd' format."""
-    # Return blank if the input is empty, None, or NaN
-    if pd.isna(date_str) or str(date_str).strip() == '':
-        return ''
-    # Check if the date is already in 'yyyy-MM-dd' format and leave it alone if so
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        return date_str
-    # Try to convert date column to something microreact will like
-    try:
-        # If the date is in 'xx/xx/xxxx' format (month/day/year)
-        if re.match(r'\d{1,2}/\d{1,2}/\d{4}', date_str):
-            return datetime.strptime(date_str, '%m/%d/%Y').strftime('%Y-%m-%d')
-    
-        # If the date is in 'mm/dd/yy' format (month/day/two-digit year)
-        elif re.match(r'^\d{1,2}/\d{1,2}/\d{2}$', date_str):
-            # Assume 20xx for two-digit years
-            return datetime.strptime(date_str, '%m/%d/%y').strftime('%Y-%m-%d')
-
-        # If the date is in 'xx/xx' format (month/year)
-        elif re.match(r'\d{1,2}/\d{2,4}', date_str):
-            return datetime.strptime(date_str, '%m/%Y').strftime('%Y-%m-01')
-
-    except ValueError:
-        # If parsing fails, return None or the original value (optional)
-        print(f"Invalid date format: {date_str}")
-    return None
-
 def clean_month_column(data):
     """Convert month names or abbreviations to their corresponding month numbers."""
     # Create mappings for month names and abbreviations
@@ -315,6 +287,7 @@ def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB):
     # 2a get list of big 5 genes
     columns_to_highlight = []
     all_genes = sub.columns.tolist()
+    all_genes = [x for x in all_genes if x not in {'WGS_ID', 'AR_Database', 'No_AR_Genes_Found', 'HV_Database'}]
     big5_keep, big5_oxa_keep= find_big_5(BLDB)
     # loop through column names and check if they contain a gene we want highlighted. Then add to highlight list if they do. 
     for gene in all_genes: # loop through each gene in the dataframe of genes found in all isolates
@@ -424,13 +397,13 @@ def standardize_location_columns(df):
         # Check for conflicts
         if len(matching_columns) > 1:
             raise ValueError(f"Multiple columns found matching '{keyword}': {matching_columns}. "
-                             "Please resolve these duplicates before standardizing.")
+                            "Please resolve these duplicates before standardizing.")
         
         if len(matching_columns) == 1:
             # Check if target keyword is already a column in the DataFrame
             if keyword in df.columns and matching_columns[0].lower() != keyword:
                 raise ValueError(f"Column '{keyword}' already exists in the DataFrame, which conflicts with "
-                                 f"the matched column '{matching_columns[0]}'. Please resolve this conflict.")
+                                f"the matched column '{matching_columns[0]}'. Please resolve this conflict.")
             
             # Map the matched column name to the standardized keyword
             new_column_names[matching_columns[0]] = keyword
@@ -442,10 +415,22 @@ def standardize_location_columns(df):
 def main(input_file, output_file, log_file, griphin_tsv, BLDB):
     """Process the data by adding latitude, longitude, cleaning month, and converting dates."""
     # Load input data
-    input_data = pd.read_csv(input_file, sep='\t')
+    # Automatically detect delimiter (comma, tab, etc.)
+    input_data = pd.read_csv(input_file, sep=None, engine="python")
+    input_data.columns = input_data.columns.str.lower().str.replace(" ", "_").str.replace("-", "_") # Normalize column names to lowercase
+    print(input_data.columns)
+    # Identify columns to drop by index
+    input_data = input_data.drop(columns=['country.1', 'state.1','amr_genotypes'], errors='ignore')
+    input_data = input_data.rename(columns={"sample.1": 'SRR'})
     # Check if the first column's name is 'sample'
-    first_column_name = input_data.columns[0]
-    if first_column_name != 'sample':
+    if 'sample' in input_data.columns:
+        # Move 'sample' column to first position
+        cols = input_data.columns.tolist()
+        cols.insert(0, cols.pop(cols.index('sample')))
+        input_data = input_data[cols]
+    else:
+        # Rename first column to 'sample'
+        first_column_name = input_data.columns[0]
         print(f"Warning: Renaming first column '{first_column_name}' to 'sample'.")
         input_data = input_data.rename(columns={first_column_name: 'sample'})
 
@@ -457,7 +442,6 @@ def main(input_file, output_file, log_file, griphin_tsv, BLDB):
 
     # Skip geolocation lookup if any required columns are missing
     required_columns = {'country', 'county', 'state', 'city'}
-
     # Check if there's at least one required column in the data
     has_required_columns = bool(required_columns & set(input_data.columns))
 
@@ -552,12 +536,13 @@ def main(input_file, output_file, log_file, griphin_tsv, BLDB):
     date_columns = [col for col in input_data.columns if 'date' in col.lower()]
 
     # Loop through each row, converting the format for each "date"-related column
-    for idx, row in input_data.iterrows():
-        for date_col in date_columns:
-            date_str = row.get(date_col, '')
-            if date_str:
-                # Convert and update the date format for each date-related column
-                input_data.loc[idx, date_col] = convert_date_format(date_str)
+    for date_col in date_columns:
+        if date_col in input_data.columns:
+            parsed = pd.to_datetime(input_data[date_col], errors="coerce")
+            bad = parsed.isna() & input_data[date_col].astype(str).str.strip().ne("")
+            if bad.any():
+                print(f"{date_col}: {bad.sum()} invalid dates")
+            input_data[date_col] = parsed.dt.strftime("%Y-%m-%d").fillna("")
 
     merge_summary_with_metadata(input_data, griphin_tsv, output_file, BLDB)
 

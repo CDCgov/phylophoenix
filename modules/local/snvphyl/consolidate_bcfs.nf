@@ -6,6 +6,7 @@ process CONSOLIDATE_BCFS {
 
     input:
     tuple val(meta), path(mpileup_bcf), path(freebayes_filtered_bcf), path(freebayes_filtered_csi)
+    val(window_size)
 
     output:
     tuple val(meta), path( "${meta.id}_consolidated.bcf" ),     emit: consolidated_bcfs
@@ -18,7 +19,7 @@ process CONSOLIDATE_BCFS {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def container = task.container.toString() - "staphb/snvphyl-tools:"
     """
-    consolidate_vcfs.pl --coverage-cutoff 10 --min-mean-mapping 30 --snv-abundance-ratio 0.75 --vcfsplit ${freebayes_filtered_bcf} --mpileup ${mpileup_bcf} --filtered-density-out ${prefix}_filtered_density.txt --window-size ${params.window_size} --density-threshold ${params.density_threshold} -o ${prefix}_consolidated.bcf > ${prefix}_consolidated.vcf
+    consolidate_vcfs.pl --coverage-cutoff 10 --min-mean-mapping 30 --snv-abundance-ratio 0.75 --vcfsplit ${freebayes_filtered_bcf} --mpileup ${mpileup_bcf} --filtered-density-out ${prefix}_filtered_density.txt --window-size ${window_size} --density-threshold ${params.density_threshold} -o ${prefix}_consolidated.bcf > ${prefix}_consolidated.vcf
     bcftools index -f ${prefix}_consolidated.bcf
 
     cat <<-END_VERSIONS > versions.yml

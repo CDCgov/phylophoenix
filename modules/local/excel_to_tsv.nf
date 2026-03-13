@@ -1,22 +1,23 @@
-process CREATE_SAMPLESHEET {
+process XLSX_TO_TSV {
     label 'process_low'
     container 'quay.io/jvhagey/phoenix@sha256:ba44273acc600b36348b96e76f71fbbdb9557bb12ce9b8b37787c3ef2b7d622f'
 
     input:
-    path(directory) // -s
+    path(xlsx)
 
     output:
-    path("Directory_samplesheet.csv"), emit: samplesheet
-    path("versions.yml"),              emit: versions
+    path("*.tsv"),        emit: tsv_samplesheet
+    path("versions.yml"), emit: versions
 
-    script: // This script is bundled with the pipeline, in cdcgov/griphin/bin/
+    script:
+    // get container info
     def ica = params.ica ? "python ${params.bin_dir}" : ""
     def container_version = "base_v2.2.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
+    def prefix = "${xlsx}" - ".xlsx"
     """
-    full_path=\$(readlink -f ${directory}/Phoenix_Summary.tsv )
-    full_dir=\$(echo \$full_path | sed 's/\\/Phoenix_Summary.tsv//')
-    ${ica}create_samplesheet.py --directory \$full_dir
+
+    ${ica}excel_to_tsv.py ${xlsx} --output ${prefix}.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

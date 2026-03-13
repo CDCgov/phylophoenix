@@ -2,7 +2,7 @@
 process GENERATE_LINE_1 {
     tag "${meta.seq_type}"
     label 'process_low'
-    container 'quay.io/jvhagey/phoenix:base_v2.1.0'
+    container 'quay.io/jvhagey/phoenix@sha256:ba44273acc600b36348b96e76f71fbbdb9557bb12ce9b8b37787c3ef2b7d622f'
 
     input:
     tuple val(meta), path(sorted_bams)
@@ -13,15 +13,9 @@ process GENERATE_LINE_1 {
 
     script:
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
-    if (params.ica==false) {
-        ica = ""
-    } else if (params.ica==true) {
-        ica = "python ${workflow.launchDir}/bin/"
-    } else {
-        error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
-    }
+    def ica = params.ica ? "python ${params.bin_dir}" : ""
     // get container info
-    def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
+    def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
     ${ica}make_bam_list.sh
 
