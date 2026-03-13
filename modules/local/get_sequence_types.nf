@@ -6,6 +6,7 @@ process GET_SEQUENCE_TYPES {
     path(griphin_samplesheet) // -s
     path(griphin_report) // -g
     path(blind_list) // -b
+    val(secondary_mlst)
 
     output:
     path("*ST*_samplesheet.csv"),             emit: st_samplesheets     // headers: id,seq_type,assembly_1,assembly_2
@@ -17,10 +18,11 @@ process GET_SEQUENCE_TYPES {
     def ica = params.ica ? "python ${params.bin_dir}" : ""
     //get blind_names if it exists
     def blind_names   = blind_list ? "--blind_list ${blind_list}" : ""
+    def use_secondary_mlst = secondary_mlst ? "--use_secondary_mlst" : ""
     def container_version = "base_v2.2.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
-    ${ica}get_st_types.py -g ${griphin_report} -s ${griphin_samplesheet} ${blind_names} 
+    ${ica}get_st_types.py -g ${griphin_report} -s ${griphin_samplesheet} ${blind_names} ${use_secondary_mlst}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

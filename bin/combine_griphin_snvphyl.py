@@ -13,6 +13,7 @@ from xlsxwriter.utility import xl_rowcol_to_cell
 import openpyxl
 from openpyxl.styles import PatternFill, Font
 from copy import copy
+import numpy as np
 
 # Function to get the script version
 def get_version():
@@ -155,7 +156,7 @@ def extract_taxa_from_filename(filename):
         taxa = f"{parts[0]}_{parts[1]}"
     return taxa
 
-def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_sheet_mapping, window_size):
+def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_sheet_mapping, window_size,snv_range):
     """Append SNVPhyl matrices to their corresponding taxa sheets."""
 
     # Group SNVMatrix files by taxa
@@ -215,13 +216,16 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
             # Write core genome percentage
             sheet.cell(row=start_row + 4, column=1, value="SNVPhyl core estimate:")
             sheet.cell(row=start_row + 4, column=2, value=str(result_dict.get(seq_type)) + "%")
+            # Write core genome percentage
+            sheet.cell(row=start_row + 5, column=1, value="hqSNV Range:")
+            sheet.cell(row=start_row + 5, column=2, value=str(snv_range.get(seq_type)))
             # Write header
             for col_idx, column_name in enumerate(snvmatrix_df.columns, start=1):
-                sheet.cell(row=start_row + 6, column=col_idx, value=column_name).font = bold_font
+                sheet.cell(row=start_row + 7, column=col_idx, value=column_name).font = bold_font
             # Write data
             for i, row in snvmatrix_df.iterrows():
                 for j, value in enumerate(row):
-                    sheet.cell(row=start_row + i + 7, column=j + 1, value=value)
+                    sheet.cell(row=start_row + i + 8, column=j + 1, value=value)
             # Update start_row for next file
             start_row += len(snvmatrix_df) + 8
 
@@ -247,6 +251,8 @@ def get_files():
     vcf2cores = get_sorted_files("*_vcf2core.tsv")
     #create empty dictionary to fill
     result_dict = {}
+    # create snv_range mapping: seq_type -> "min - max"
+    snv_range = {}
     # looping through vcf2core files
     for vcf2core in vcf2cores:
         # Derive seq_type from the filename by removing '_vcf2core.tsv'
@@ -259,7 +265,44 @@ def get_files():
             result_dict[seq_type] = last_value
         except (KeyError, ValueError, IndexError) as e:
             print(f"Error processing file '{vcf2core}': {e}")
-    return snvmatrices, result_dict
+    # collect SNV min-max ranges
+    for snvmatrix in snvmatrices:
+        seq_type = os.path.basename(snvmatrix).replace('_snvMatrix.tsv', '')
+        try:
+            # Read first column as row names
+            df = pd.read_csv(snvmatrix, sep='\t', index_col=0)
+            # Convert everything to numeric where possible
+            df = df.apply(pd.to_numeric, errors='coerce')
+            # Make sure row names and column names are comparable strings
+            df.index = df.index.astype(str).str.strip()
+            df.columns = df.columns.astype(str).str.strip()
+            # Keep only shared sample names so matrix is square
+            shared_names = [name for name in df.index if name in df.columns]
+            df = df.loc[shared_names, shared_names]
+            if df.empty or df.shape[0] < 2:
+                snv_range[seq_type] = "NA"
+                continue
+            arr = df.to_numpy(dtype=float)
+            # Exclude diagonal and NaN
+            non_diag_mask = ~np.eye(arr.shape[0], dtype=bool)
+            values = arr[non_diag_mask]
+            values = values[~np.isnan(values)]
+            if values.size == 0:
+                snv_range[seq_type] = "NA"
+            else:
+                min_val = values.min()
+                max_val = values.max()
+                # format nicely
+                if float(min_val).is_integer():
+                    min_val = int(min_val)
+                if float(max_val).is_integer():
+                    max_val = int(max_val)
+                snv_range[seq_type] = f"{min_val} - {max_val}"
+                print(f"SNV range for {seq_type}: {snv_range[seq_type]}")
+        except Exception as e:
+            print(f"Error reading snvMatrix '{snvmatrix}': {e}")
+            snv_range[seq_type] = "NA"
+    return snvmatrices, result_dict, snv_range
 
 def main():
     args = parseArgs()
@@ -269,10 +312,10 @@ def main():
     # Create taxa sheets
     taxa_sheet_mapping = create_taxa_sheets(workbook)
     # Get SNVMatrix files and core genome data
-    snvmatrices, result_dict = get_files()
+    snvmatrices, result_dict, snv_range = get_files()
     print(snvmatrices, result_dict)
     # Append SNVPhyl data to taxa sheets
-    append_tsv_to_excel(workbook, snvmatrices, result_dict, args.blind_list, taxa_sheet_mapping, args.window_size)
+    append_tsv_to_excel(workbook, snvmatrices, result_dict, args.blind_list, taxa_sheet_mapping, args.window_size, snv_range)
     # Save the final output file
     workbook.save("SNVPhyl_GRiPHin_Summary.xlsx")
     print("Excel file with taxa sheets and SNVPhyl data saved as 'SNVPhyl_GRiPHin_Summary.xlsx'.")

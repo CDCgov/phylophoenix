@@ -16,6 +16,7 @@ def parseArgs(args=None):
     parser.add_argument('-s', '--samplesheet', default=None, required=False, dest='samplesheet', help='GRiPHin samplesheet of sample,directory in csv format.')
     parser.add_argument('-g', '--griphin_report', required=False, dest='griphin_report', help='A griphin excel report.')
     parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
+    parser.add_argument('--use_secondary_mlst', default=False, action='store_true', required=False, dest='use_secondary_mlst', help='Use secondary MLST scheme.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
@@ -33,7 +34,7 @@ def blind_map(control_file):
     return rename_mapping
 
 
-def get_st_groups(griphin_report):
+def get_st_groups(griphin_report, use_secondary_mlst):
     """Get unique ST groups from griphin report.
 
     Returns a dict where keys are "<Final_Taxa_ID_with_underscores>_<Primary_MLST>"
@@ -42,23 +43,44 @@ def get_st_groups(griphin_report):
     """
     df = pd.read_excel(griphin_report, header=1)
     # keep only rows with a Primary_MLST
-    df.dropna(subset=["Primary_MLST"], inplace=True)
-    # remove rows that do not have a conventional ST (those containing "-")
-    clean_df = df[~df.Primary_MLST.str.contains("-", na=False)]
-    # remove Novel_allele rows from Primary_MLST
-    novel_df = clean_df[clean_df["Primary_MLST"].str.contains("Novel_allele", na=False)]
-    if not novel_df.empty:
-        clean_df = clean_df.drop(index=list(novel_df.index))
-    # sanity: ensure there's at least some STs left
-    list_of_sts = clean_df["Primary_MLST"].unique()
-    if list_of_sts.size == 0:
-        raise ValueError("After removing Novel MLSTs there are no STs with enough isolates (min 2) to run Phylophoenix. This set can only be run all together.")
-    # drop rows missing fields we need to build groups
-    clean_df = clean_df.copy()
-    clean_df.dropna(subset=["Final_Taxa_ID", "WGS_ID"], inplace=True)
-    st_dict = {}
-    # group by both ST and taxa so multi-species STs are handled separately
-    grouped = clean_df.groupby(["Primary_MLST", "Final_Taxa_ID"], observed=True)
+    if use_secondary_mlst != True or df.dropna(subset=["Secondary_MLST"], inplace=True) == None:
+        if df.dropna(subset=["Secondary_MLST"], inplace=True) == None:
+            print("No secondary MLST scheme found. Defaulting to primary MLST scheme.")
+        df.dropna(subset=["Primary_MLST"], inplace=True)
+        # remove rows that do not have a conventional ST (those containing "-")
+        clean_df = df[~df.Primary_MLST.str.contains("-", na=False)]
+        # remove Novel_allele rows from Primary_MLST
+        novel_df = clean_df[clean_df["Primary_MLST"].str.contains("Novel_allele", na=False)]
+        if not novel_df.empty:
+            clean_df = clean_df.drop(index=list(novel_df.index))
+        # sanity: ensure there's at least some STs left
+        list_of_sts = clean_df["Primary_MLST"].unique()
+        if list_of_sts.size == 0:
+            raise ValueError("After removing Novel MLSTs there are no STs with enough isolates (min 2) to run Phylophoenix. This set can only be run all together.")
+        # drop rows missing fields we need to build groups
+        clean_df = clean_df.copy()
+        clean_df.dropna(subset=["Final_Taxa_ID", "WGS_ID"], inplace=True)
+        st_dict = {}
+        # group by both ST and taxa so multi-species STs are handled separately
+        grouped = clean_df.groupby(["Primary_MLST", "Final_Taxa_ID"], observed=True)
+    else:
+        df.dropna(subset=["Secondary_MLST"], inplace=True)
+        # remove rows that do not have a conventional ST (those containing "-")
+        clean_df = df[~df.Secondary_MLST.str.contains("-", na=False)]
+        # remove Novel_allele rows from Secondary_MLST
+        novel_df = clean_df[clean_df["Secondary_MLST"].str.contains("Novel_allele", na=False)]
+        if not novel_df.empty:
+            clean_df = clean_df.drop(index=list(novel_df.index))
+        # sanity: ensure there's at least some STs left
+        list_of_sts = clean_df["Secondary_MLST"].unique()
+        if list_of_sts.size == 0:
+            raise ValueError("After removing Novel MLSTs there are no STs with enough isolates (min 2) to run Phylophoenix. This set can only be run all together.")
+        # drop rows missing fields we need to build groups
+        clean_df = clean_df.copy()
+        clean_df.dropna(subset=["Final_Taxa_ID", "WGS_ID"], inplace=True)
+        st_dict = {}
+        # group by both ST and taxa so multi-species STs are handled separately
+        grouped = clean_df.groupby(["Secondary_MLST", "Final_Taxa_ID"], observed=True)
     for (st, taxa), grp in grouped:
         if len(grp) > 1:  # require at least 2 samples in the combined group
             taxa_clean = str(taxa).replace(" ", "_")
@@ -110,7 +132,7 @@ def combine_samplesheets():
 
 def main():
     args = parseArgs()
-    st_dict = get_st_groups(args.griphin_report) # open the excel sheet get sample names organized by their ST types
+    st_dict = get_st_groups(args.griphin_report, args.use_secondary_mlst) # open the excel sheet get sample names organized by their ST types
     create_sample_sheets(st_dict, args.samplesheet, args.blind_list) # go back to the samplesheet and keep only lines this matching samplenames
     combine_samplesheets()
 

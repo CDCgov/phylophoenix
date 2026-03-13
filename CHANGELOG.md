@@ -18,7 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GRiPHin module and python script updated to be inline with [PHoeNIx pipeline](https://github.com/CDCgov/phoenix).  
 - Similar to PHoeNIx moved container calling to sha256 instead of tag.  
 - Refactored pipeline to remove generate_line modules.  
-- Updated modules using phoenix base container from  [base_v2.2.0]().  
+- Added window size and hqSNV range information to griphin report.  
+- Now separates by taxa automatically for analysis.  
 
 **Fixed Bugs:** 
 - Fixed --blind_list samples being excluded from by_st.  

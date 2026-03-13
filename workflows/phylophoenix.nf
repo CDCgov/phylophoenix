@@ -271,7 +271,7 @@ workflow PHYLOPHOENIX {
             // Check and correct the metadata file if it was passed
             if (params.metadata!=null) {
                 CLEAN_AND_CREATE_METADATA (
-                    CREATE_META.out.split_metadata, GRIPHIN_WORKFLOW.out.griphin_tsv_report, ASSET_PREP.out.unzipped_geodata, params.bldb
+                    CREATE_META.out.split_metadata, GRIPHIN_WORKFLOW.out.griphin_tsv_report, ASSET_PREP.out.unzipped_geodata, params.bldb, params.use_secondary_mlst
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA.out.versions)
             }
@@ -301,8 +301,6 @@ workflow PHYLOPHOENIX {
                                     .map { meta, centroid, phylo, matrix, empty -> tuple(meta, centroid, phylo ?: [], matrix, empty) }
             }
 
-            final_output_ch.view()
-
             // Rename reference to actual sample name
             RENAME_REF_IN_OUTPUT (
                 final_output_ch
@@ -320,13 +318,13 @@ workflow PHYLOPHOENIX {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // get sequence types with a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             } else {
                 // get sequence types without a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, []
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             }
@@ -395,7 +393,8 @@ workflow PHYLOPHOENIX {
                     metadata_ch.map{meta, metadata, griphin, assets -> [meta, metadata]},
                     metadata_ch.map{meta, metadata, griphin, assets -> [griphin]},
                     metadata_ch.map{meta, metadata, griphin, assets -> assets},
-                    params.bldb
+                    params.bldb,
+                    params.use_secondary_mlst
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA_BY_ST.out.versions)
             }
