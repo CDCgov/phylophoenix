@@ -87,13 +87,13 @@ def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
 
 def quality_check(samplesheet, metadata, seq_type):
     # Load metadata and samplesheet files
-    samplesheet = pd.read_csv(samplesheet, sep=',')
+    samplesheet = pd.read_csv(samplesheet, sep=',',dtype='str')
 
     # Extract sample from the samplesheet file
     samplesheet_wgs_ids = samplesheet['sample'].tolist()
 
     # Load metadata files
-    metadata = pd.read_csv(metadata, sep='\t')
+    metadata = pd.read_csv(metadata, sep='\t',dtype='str')
     #rename all columns to lowercase
     metadata.columns = metadata.columns.str.lower()
     # Double-check that the first column of metadata is named 'sample' if not then rename it

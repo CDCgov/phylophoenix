@@ -20,7 +20,7 @@ CEND = '\033[0m'
 
 def get_failures(summary):
     '''create list of samples that failed the griphin summary'''
-    df = pd.read_csv(summary, header=0, sep='\t')
+    df = pd.read_csv(summary, header=0, sep='\t', dtype='str')
     df_fails = df[df['Minimum_QC_Check'].str.contains('FAIL')]
     failed_id_list = df_fails["WGS_ID"].tolist()
     #write failed ids to text
@@ -31,7 +31,8 @@ def get_failures(summary):
 
 def filter_dir_samplesheet(failed_id_list, directory_samplesheet):
     '''remove samples that failed from directory samplesheet so they aren't in the downstream analysis'''
-    df = pd.read_csv(directory_samplesheet, header=0, sep=',')
+    df = pd.read_csv(directory_samplesheet, header=0, sep=',', dtype='str')
+    print(df)
     df = df[~df['sample'].isin(failed_id_list)] #remove failed samples
     if df.empty:
         raise ValueError("After removing failures there are no samples left. At least 3 passing isolates are needed for analysis.")

@@ -24,7 +24,7 @@ def create_sample_sheets(samplesheet, taxa, sample_list):
     seq_type = "All_" + taxa + "_Isolates"
     with open("SNVPhyl_" + seq_type +"_samplesheet_pre.csv", "a") as st_snv_samplesheet: # create a new sample sheet for each ST that can be used by snvphyl
         st_snv_samplesheet.write('sample,directory') #write the header
-    df = pd.read_csv(samplesheet, sep=',', header=0)
+    df = pd.read_csv(samplesheet, sep=',', header=0, dtype='str')
     #sample_list = df["sample"].tolist()
     for sample in sample_list: # for each sample that is part of the ST
         with open(samplesheet, 'r') as f: # read the orginal directory samplesheet
@@ -44,7 +44,7 @@ def create_sample_sheets(samplesheet, taxa, sample_list):
 
 def get_taxa_samples(griphin):
     """Extract taxa groups and their corresponding sample lists from GRiPHin TSV file."""
-    df = pd.read_csv(griphin, sep='\t', header=0)
+    df = pd.read_csv(griphin, sep='\t', header=0, dtype='str')
     df['Final_Taxa_ID'] = df['Final_Taxa_ID'].str.replace(' ', '_')  # Replace spaces with underscores in Final_Taxa_ID
     # Group samples by Final_Taxa_ID
     taxa_groups = {}

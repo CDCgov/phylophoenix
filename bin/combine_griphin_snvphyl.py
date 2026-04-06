@@ -187,7 +187,7 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
         count = 0
         for snvmatrix in files:
             # Load the TSV file data
-            snvmatrix_df = pd.read_csv(snvmatrix, sep='\t')
+            snvmatrix_df = pd.read_csv(snvmatrix, sep='\t', dtype='str')
             if rename_mapping is not None:
                 snvmatrix_df['WGS_ID'] = snvmatrix_df['WGS_ID'].replace(rename_mapping)
                 snvmatrix_df = snvmatrix_df.rename(columns=rename_mapping)
@@ -258,7 +258,7 @@ def get_files():
         # Derive seq_type from the filename by removing '_vcf2core.tsv'
         seq_type = os.path.basename(vcf2core).replace('_vcf2core.tsv', '')
         # Read the TSV file
-        df_vcf2core = pd.read_csv(vcf2core, sep='\t')
+        df_vcf2core = pd.read_csv(vcf2core, sep='\t',dtype='str')
         # Extract the last row's specified column value as a float - to get % core genome
         try:
             last_value = float(df_vcf2core["Percentage of all positions that are valid, included, and part of the core genome"].iloc[-1])
@@ -270,7 +270,7 @@ def get_files():
         seq_type = os.path.basename(snvmatrix).replace('_snvMatrix.tsv', '')
         try:
             # Read first column as row names
-            df = pd.read_csv(snvmatrix, sep='\t', index_col=0)
+            df = pd.read_csv(snvmatrix, sep='\t', index_col=0, dtype='str')
             # Convert everything to numeric where possible
             df = df.apply(pd.to_numeric, errors='coerce')
             # Make sure row names and column names are comparable strings

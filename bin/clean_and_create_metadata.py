@@ -267,7 +267,7 @@ def make_allele_column(df_sub, gene_prefix):
 def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB, use_secondary_mlst):
     """Merge GRiPHin_Summary.tsv with metadata file on 'WGS_ID' and save the result."""
     # Load metadata and summary files
-    summary = pd.read_csv(summary_file, sep='\t')
+    summary = pd.read_csv(summary_file, sep='\t', dtype='str')
 
     # Determine the appropriate organism column to use -- allows backward compatibility 
     if 'Final_Taxa_ID' in summary.columns:
@@ -420,7 +420,7 @@ def main(input_file, output_file, log_file, griphin_tsv, BLDB, use_secondary_mls
     """Process the data by adding latitude, longitude, cleaning month, and converting dates."""
     # Load input data
     # Automatically detect delimiter (comma, tab, etc.)
-    input_data = pd.read_csv(input_file, sep=None, engine="python")
+    input_data = pd.read_csv(input_file, sep=None, engine="python", dtype='str')
     input_data.columns = input_data.columns.str.lower().str.replace(" ", "_").str.replace("-", "_") # Normalize column names to lowercase
     print(input_data.columns)
     # Identify columns to drop by index

@@ -45,7 +45,7 @@ def print_error(error, context="Line", context_str=""):
     sys.exit(1)
 
 def check_for_duplicates(file_in):
-    df = pd.read_csv(file_in)
+    df = pd.read_csv(file_in, dtype='str')
     duplicate_mask = df.duplicated()
     if duplicate_mask.any():
         duplicate_rows = df[duplicate_mask]

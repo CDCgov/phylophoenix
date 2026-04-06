@@ -1792,7 +1792,7 @@ def blind_samples(final_df, control_file):
 def create_samplesheet(input_directory, scaffolds_entry):
     """Function will create a samplesheet from samples in a directory if -d argument passed."""
     directory = os.path.abspath(input_directory) # make sure we have an absolute path to start with
-    with open("Directory_samplesheet.csv", "w") as samplesheet:
+    with open("Directory_samplesheet_converted.csv", "w") as samplesheet:
         samplesheet.write('sample,directory\n')
     dirs = sorted(os.listdir("GRiPHin"))
     # Filter directories based on the presence of required files
@@ -1806,15 +1806,15 @@ def create_samplesheet(input_directory, scaffolds_entry):
     except: #if no numbers then use only alphabetically
         dirs_sorted=sorted(valid_directories)
     for sample in dirs_sorted:
-        with open("Directory_samplesheet.csv", "a") as samplesheet:
+        with open("Directory_samplesheet_converted.csv", "a") as samplesheet:
             if directory[-1] != "/": # if directory doesn't have trailing / add one
                 directory = directory + "/"
             samplesheet.write(sample + "," + directory + sample + '\n')
-    samplesheet = "Directory_samplesheet.csv"
+    samplesheet = "Directory_samplesheet_converted.csv"
     return samplesheet
 
 def sort_samplesheet(samplesheet):
-    df = pd.read_csv(samplesheet)
+    df = pd.read_csv(samplesheet, dtype="str")
     #get list of sample ids to sort
     samples = df["sample"]
     try: #if there are numbers in the name then use that to sort
@@ -1823,7 +1823,8 @@ def sort_samplesheet(samplesheet):
         samples_sorted=sorted(samples)
     df = df.set_index("sample")
     df = df.loc[samples_sorted]
-    df.to_csv(samplesheet, sep=',', encoding='utf-8') #overwrite file
+    new_samplesheet_name = "Directory_samplesheet_converted.csv"
+    df.to_csv(new_samplesheet_name, sep=',', encoding='utf-8') #overwrite file
 
 def convert_excel_to_tsv(output):
     '''Reads in the xlsx file that was just created, outputs as tsv version with first layer of headers removed'''
