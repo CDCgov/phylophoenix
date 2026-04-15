@@ -38,6 +38,10 @@ workflow PHYLOPHOENIX_WF {
     } else {
         by_st = params.by_st //this is the default of false
     }
+
+    if (params.use_secondary_mlst==true && params.by_st==false) {
+        exit 1, "you passed --use_secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
+    }
     // Check input path parameters to see if they exist
     if (params.input != null ) {  // if a samplesheet is passed
         // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 

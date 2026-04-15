@@ -85,19 +85,26 @@ def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
     with open(seq_type + "_metadata.tsv", 'w') as writer:
         writer.writelines(filtered_lines)
 
-def quality_check(samplesheet, metadata, seq_type):
+def quality_check(samplesheet, metadata):
     # Load metadata and samplesheet files
-    samplesheet = pd.read_csv(samplesheet, sep=',',dtype='str')
-
+    samplesheet = pd.read_csv(samplesheet, sep=',')
+    samplesheet.columns = samplesheet.columns.str.lower()
     # Extract sample from the samplesheet file
     samplesheet_wgs_ids = samplesheet['sample'].tolist()
 
+    with open(metadata, "r") as f:
+        sample = f.read(2048)  # read first chunk
+        delimiter = csv.Sniffer().sniff(sample).delimiter
+
     # Load metadata files
-    metadata = pd.read_csv(metadata, sep='\t',dtype='str')
+    metadata = pd.read_csv(metadata, sep=delimiter)
     #rename all columns to lowercase
     metadata.columns = metadata.columns.str.lower()
+    metadata.columns = metadata.columns.str.strip().str.replace(" " ,"_").str.replace(r'[^a-z0-9_,]', '', regex=True)
+    print(metadata.columns)
     # Double-check that the first column of metadata is named 'sample' if not then rename it
     first_column = metadata.columns[0]
+    print(first_column)
     if first_column != 'sample':
         # Check if 'sample' column exists anywhere in the dataframe
         if 'sample' in metadata.columns:
@@ -116,19 +123,17 @@ def quality_check(samplesheet, metadata, seq_type):
     # If there are missing IDs, add them to the metadata with empty values
     if missing_ids:
         print(f"Adding {missing_ids} missing sample(s) to the metadata.")
-        
         # Create a DataFrame with the missing IDs and NaN for all other columns
         missing_rows = pd.DataFrame(missing_ids, columns=['sample'])
         for col in metadata.columns[1:]:
             missing_rows[col] = pd.NA  # Fill the rest of the columns with NaN
-
         # Append the missing rows to the metadata
         metadata = pd.concat([metadata, missing_rows], ignore_index=True)
     return metadata
 
 def main():
     args = parseArgs()
-    updated_metadata = quality_check(args.st_snv_samplesheets, args.metadata, args.seq_type)
+    updated_metadata = quality_check(args.st_snv_samplesheets, args.metadata)
     # Save the updated metadata DataFrame back to a file (temporary or overwritten)
     updated_metadata_file = "updated_metadata.tsv"
     updated_metadata.to_csv(updated_metadata_file, sep='\t', index=False)

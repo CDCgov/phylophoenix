@@ -270,22 +270,45 @@ workflow PHYLOPHOENIX {
 
             // Check and correct the metadata file if it was passed
             if (params.metadata!=null) {
+                //get files in the same tuple for cleaner coding
+                assets_ch = ASSET_PREP.out.unzipped_geodata.map{africa, americas, eu, other, sea, us -> [[africa, americas, eu, other, sea, us]]}
+                //combine files in channels so they aren't comsumed.
+                //we need to have .first() as there might be more coming out of that channel than needed - i.e. not all STs continue since there is a min number of isolates required to continue.
+                metadata_ch = CREATE_META.out.split_metadata.combine(GRIPHIN_WORKFLOW.out.griphin_tsv_report).combine(assets_ch.first())
+                // clean up metadata file, add geolocation information
                 CLEAN_AND_CREATE_METADATA (
-                    CREATE_META.out.split_metadata, GRIPHIN_WORKFLOW.out.griphin_tsv_report, ASSET_PREP.out.unzipped_geodata, params.bldb, params.use_secondary_mlst
+                    metadata_ch.map{meta, metadata, griphin, assets -> [meta, metadata]},
+                    metadata_ch.map{meta, metadata, griphin, assets -> [griphin]},
+                    metadata_ch.map{meta, metadata, griphin, assets -> assets},
+                    params.bldb
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA.out.versions)
             }
 
+            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
+            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
+            GET_CENTROID.out.centroid_info.map{ meta, centroid_file -> log.info "parsed centroid_id: ${(centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]}"}
+
+            centroid_id_ch = GET_CENTROID.out.centroid_info.map{ meta, centroid_file ->
+                                def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
+                                tuple(meta.seq_type, centroid_id)
+                            }
+
+            centroid_id_ch.view()
+
+            filtered_reads_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
+                .combine(centroid_id_ch, by: 0)
+                .filter{ seq_type, sample_id, fastqs, centroid_id -> sample_id != centroid_id }
+                .map{ seq_type, sample_id, fastqs, centroid_id -> tuple([seq_type: seq_type, id: sample_id], fastqs)}
+
             /*all_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, fastqs, meta.id) }
-                .combine(ASSET_PREP.out.unzipped_fasta.map { meta, unzipped_fasta -> tuple(meta.seq_type, unzipped_fasta) }, by: 0)
+                .combine(GET_CENTROID.out.centroid_info.map { meta, unzipped_fasta -> tuple(meta.seq_type, unzipped_fasta) }, by: 0)
                 .map{ seq_type, fastqs, id, unzipped_fasta -> tuple([seq_type: seq_type, id: id], fastqs, unzipped_fasta)}*/
 
             // Run snvphyl on each st type on its own input
             SNVPHYL (
-                CREATE_META.out.st_reads,
+                filtered_reads_ch,
                 ASSET_PREP.out.unzipped_fasta,
-                //all_ch.map{ meta, reads, unzipped_fasta -> [meta, reads]}, 
-                //all_ch.map{ meta, reads, unzipped_fasta -> [[seq_type:meta.seq_type], unzipped_fasta] }, // reference
                 params.window_size
             )
             ch_versions = ch_versions.mix(SNVPHYL.out.versions)
@@ -393,8 +416,7 @@ workflow PHYLOPHOENIX {
                     metadata_ch.map{meta, metadata, griphin, assets -> [meta, metadata]},
                     metadata_ch.map{meta, metadata, griphin, assets -> [griphin]},
                     metadata_ch.map{meta, metadata, griphin, assets -> assets},
-                    params.bldb,
-                    params.use_secondary_mlst
+                    params.bldb
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA_BY_ST.out.versions)
             }
@@ -403,9 +425,24 @@ workflow PHYLOPHOENIX {
                 .combine(ASSET_PREP_BY_ST.out.unzipped_fasta.map{meta, unzipped_fasta -> tuple(meta.seq_type, unzipped_fasta)}, by: 0)
                 .map{seq_type, fastqs, id, unzipped_fasta -> tuple([seq_type: seq_type, id: id], fastqs, unzipped_fasta)}*/
 
+            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
+            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
+
+            centroid_id_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.map{ meta, centroid_file ->
+                                def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
+                                tuple(meta.seq_type, centroid_id)
+                            }
+
+            centroid_id_by_st_ch.view()
+
+            filtered_reads_by_st_ch = CREATE_META_BY_ST.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
+                .combine(centroid_id_by_st_ch, by: 0)
+                .filter{ seq_type, sample_id, fastqs, centroid_id -> sample_id != centroid_id }
+                .map{ seq_type, sample_id, fastqs, centroid_id -> tuple([seq_type: seq_type, id: sample_id], fastqs)}
+
             // Run snvphyl on each st type on its own input
             SNVPHYL_BY_ST (
-                CREATE_META_BY_ST.out.st_reads,
+                filtered_reads_by_st_ch,
                 ASSET_PREP_BY_ST.out.unzipped_fasta, // reference
                 params.window_size
             )

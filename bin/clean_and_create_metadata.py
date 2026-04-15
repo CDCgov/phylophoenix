@@ -30,7 +30,6 @@ def parseArgs(args=None):
     parser.add_argument("-l", "--log", default="offline_geocoding_errors.log",required=False, help="Error log file")
     parser.add_argument("-g", "--griphin_tsv", default="GRiPHin_Summary.tsv", required=True, help="Griphin file.")
     parser.add_argument('-b', '--bldb', default=None, required=False, dest='bldb', help='.')
-    parser.add_argument('--use_secondary_mlst', default=False, action='store_true', required=False, dest='use_secondary_mlst', help='Use secondary MLST scheme.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
@@ -264,7 +263,7 @@ def make_allele_column(df_sub, gene_prefix):
 
     return df_sub.apply(get_alleles, axis=1)
 
-def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB, use_secondary_mlst):
+def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB):
     """Merge GRiPHin_Summary.tsv with metadata file on 'WGS_ID' and save the result."""
     # Load metadata and summary files
     summary = pd.read_csv(summary_file, sep='\t', dtype='str')
@@ -278,12 +277,10 @@ def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB, use_s
     # add big 5 genes
     # 1. Identify the column range between AR_Database and HV_Database (inclusive)
     cols = list(summary.columns)
-
     # Subset: WGS_ID + columns between AR_Database and HV_Database
     subset_cols = ['WGS_ID'] + cols[cols.index('AR_Database'):cols.index('HV_Database')+1]
     sub = summary[subset_cols]
     gene_allele_cols = []
-
     # 2. Create allele columns for NDM, VIM, IMP on the original dataframe
     # 2a get list of big 5 genes
     columns_to_highlight = []
@@ -312,12 +309,8 @@ def merge_summary_with_metadata(metadata, summary_file, output_file, BLDB, use_s
         else:
             summary[col_name] = result
             gene_allele_cols.append(col_name)  # remember this column exists
-
     # Select relevant columns from the GRiPHin summary file
-    if use_secondary_mlst != True:
-        basecols = ['WGS_ID', organism_column, 'Primary_MLST', 'Secondary_MLST']
-    else:
-        basecols = ['WGS_ID', organism_column, 'Secondary_MLST', 'Secondary_MLST']
+    basecols = ['WGS_ID', organism_column, 'Primary_MLST', 'Secondary_MLST']
     # Only include gene_alleles columns that are actually present in summary
     existing_gene_cols = [c for c in gene_allele_cols if c in summary.columns]
     summary_subset = summary[ basecols + existing_gene_cols]
@@ -416,7 +409,7 @@ def standardize_location_columns(df):
     df = df.rename(columns=new_column_names)
     return df
 
-def main(input_file, output_file, log_file, griphin_tsv, BLDB, use_secondary_mlst):
+def main(input_file, output_file, log_file, griphin_tsv, BLDB):
     """Process the data by adding latitude, longitude, cleaning month, and converting dates."""
     # Load input data
     # Automatically detect delimiter (comma, tab, etc.)
@@ -548,7 +541,7 @@ def main(input_file, output_file, log_file, griphin_tsv, BLDB, use_secondary_mls
                 print(f"{date_col}: {bad.sum()} invalid dates")
             input_data[date_col] = parsed.dt.strftime("%Y-%m-%d").fillna("")
 
-    merge_summary_with_metadata(input_data, griphin_tsv, output_file, BLDB, use_secondary_mlst)
+    merge_summary_with_metadata(input_data, griphin_tsv, output_file, BLDB)
 
     # Write errors to log file
     with open(log_file, 'w') as f:
@@ -557,4 +550,4 @@ def main(input_file, output_file, log_file, griphin_tsv, BLDB, use_secondary_mls
 
 if __name__ == "__main__":
     args = parseArgs()
-    main(args.input, args.output, args.log, args.griphin_tsv, args.bldb, args.use_secondary_mlst)
+    main(args.input, args.output, args.log, args.griphin_tsv, args.bldb)

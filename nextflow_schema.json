@@ -46,6 +46,12 @@
                     "description": "By default Phylophoenix runs all samples together and only splits samples by st if --by_st is passed. If you ONLY want to run samples split by ST and not all together then pass --by_st and --no_all.",
                     "fa_icon": "fas fa-keyboard"
                 },
+                "use_secondary_mlst": {
+                    "type": "boolean",
+                    "default": "False",
+                    "description": "Use in conjunction with --by_st if you want to use the secondary MLST schema to sort samples for analysis.",
+                    "fa_icon": "fas fa-keyboard"
+                },
                 "metadata": {
                     "type": "string",
                     "format": "file-path",
@@ -81,8 +87,8 @@
                 "window_size": {
                     "type": "integer",
                     "description": "Window size for identifying high-density SNV regions.",
-                    "default": 11,
-                    "help_text": "Window size for identifying high-density SNV regions. Should be an integer e.g. `--window_size 11`"
+                    "default": 500,
+                    "help_text": "Window size for identifying high-density SNV regions. Should be an integer e.g. `--window_size 500`"
                 },
                 "density_threshold": {
                     "type": "integer",
