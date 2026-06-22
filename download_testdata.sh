@@ -2,8 +2,8 @@
 # Downloads and extracts PHoeNIx test data from Zenodo
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-ZENODO_URL="https://zenodo.org/records/20548667/files/testoutput_phoenix.tar.gz"
-# https://doi.org/10.5281/zenodo.20548667
+ZENODO_URL="https://zenodo.org/records/20802106/files/testoutput_phoenix.tar.gz"
+# https://doi.org/10.5281/zenodo.20802106
 
 ASSET_DIR="${SCRIPT_DIR}/assets/testoutput_phoenix"
 SAMPLESHEET="${SCRIPT_DIR}/assets/testoutput_phoenix/Directory_samplesheet.csv"
