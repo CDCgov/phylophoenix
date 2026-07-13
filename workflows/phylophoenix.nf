@@ -287,14 +287,12 @@ workflow PHYLOPHOENIX {
 
             // Get the centroid id for each sample to filter out from the SNVPhyl run. 
             // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
-            GET_CENTROID.out.centroid_info.map{ meta, centroid_file -> log.info "parsed centroid_id: ${(centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]}"}
+            //GET_CENTROID.out.centroid_info.map{ meta, centroid_file -> log.info "parsed centroid_id: ${(centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]}"}
 
             centroid_id_ch = GET_CENTROID.out.centroid_info.map{ meta, centroid_file ->
                                 def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
                                 tuple(meta.seq_type, centroid_id)
                             }
-
-            centroid_id_ch.view()
 
             filtered_reads_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
                 .combine(centroid_id_ch, by: 0)
