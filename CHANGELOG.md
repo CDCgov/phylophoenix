@@ -33,3 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phyml was updated from 3.3.20220408 to [3.3.20250515](https://github.com/stephaneguindon/phyml/releases/tag/v3.3.20250515).  
 - Updated modules using phoenix base container from base_v2.1.0 to [base_v2.2.0](https://github.com/CDCgov/phoenix/blob/main/Dockerfiles/Dockerfile_base).  
 - snvphyl-tools
+
+**Config updates,phyml container and testmode :**
+- Added testdata for user testing and validation.
+- Updated test and nextflow config to enable singularity support 
+- Added custom PhyML docker container to resolve the phyml:command not found issue and "Illegal instruction" error due to environment incompatibilities at runtime.(quay.io/aginni/phyml:3.3.20250515_4)
+- Updated the action download artiact version - addressing the security vulnerabilities

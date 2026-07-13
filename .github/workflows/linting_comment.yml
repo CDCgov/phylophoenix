@@ -11,10 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download lint results
-        uses: dawidd6/action-download-artifact@v2
+        uses: dawidd6/action-download-artifact@v6
         with:
           workflow: linting.yml
           workflow_conclusion: completed
+          allow_forks: false
 
       - name: Get PR number
         id: pr_number
