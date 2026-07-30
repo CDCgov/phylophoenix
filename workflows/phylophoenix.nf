@@ -156,6 +156,9 @@ workflow PHYLOPHOENIX {
 
         // Determine if ShigaPass was run and if Shigella/Escherichia detected
         shigapass_var_ch =  CREATE_INPUT_CHANNELS.out.griphin_tsv_ch.map{ meta, summary_line -> summary_line.readLines().first().contains('ShigaPass_Organism')}.collect().unique()
+        phx_version_ch =  CREATE_INPUT_CHANNELS.out.pipeline_info.map{ meta, pipeline_versions -> 
+            def line = pipeline_versions.readLines().find { it.contains('cdcgov/phoenix:') } 
+            line ? line.split(':')[1].trim() : null }
 
         //create GRiPHin report channel
         griphin_inputs_ch = Channel.empty()
@@ -203,7 +206,7 @@ workflow PHYLOPHOENIX {
             has_busco_ch,
             shigapass_var_ch,
             griphin_inputs_ch,
-            workflow.manifest.version,
+            phx_version_ch,
             outdir_path
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
@@ -214,7 +217,7 @@ workflow PHYLOPHOENIX {
             //outdir_path = Channel.fromPath(params.outdir, relative: true, type: 'dir')
             // Creates samplesheets with sampleid,seq_type,path_to_assembly
             GET_COMPARISONS (
-                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_tsv_report
+                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_tsv_report, params.combine_complex
             )
             ch_versions = ch_versions.mix(GET_COMPARISONS.out.versions)
 
@@ -339,13 +342,13 @@ workflow PHYLOPHOENIX {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // get sequence types with a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             } else {
                 // get sequence types without a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst
+                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             }
@@ -484,14 +487,14 @@ workflow PHYLOPHOENIX {
             blind_path = Channel.fromPath(params.blind_list, relative: true)
             // Create report
             COMBINE_GRIPHIN_SNVPHYL (
-                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.window_size
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.window_size, params.combine_complex
             )
             ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
 
         } else {
             // combine without blinding
             COMBINE_GRIPHIN_SNVPHYL (
-                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.window_size
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.window_size, params.combine_complex
             )
             ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
         }

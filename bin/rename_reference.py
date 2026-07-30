@@ -42,29 +42,26 @@ def replace_reference_in_meta_file(input_file, output_file, centroid):
     with open(input_file, 'r') as f:
         content = f.read()
     # Replace all occurrences of 'reference' with word boundaries
-    modified_content = re.sub(rf'\b{re.escape(centroid)}\b', centroid + "*", content)
+    modified_content = re.sub(rf'\b{re.escape(centroid)}\b', centroid, content)
 
     with open(output_file, 'w') as f:
         f.write(modified_content)
 
 def replace_reference_in_snvfile(input_file, output_file, replacement):
-    """Replace the word 'reference' with the replacement string in a file."""
-    with open(input_file, 'r') as f:
-        content = f.readlines()
-
-    # Process each line to replace words and remove trailing tabs
-    modified_content = []
-    for line in content:
-        # Replace 'strain' with 'WGS_ID' and 'reference' with the replacement string
-        line = re.sub(r'\bstrain\b', "WGS_ID", line)
-        line = re.sub(r'\breference\b', replacement, line)
-
-        # Remove any trailing tab and add the cleaned line to the modified content
-        modified_content.append(line.rstrip('\t\n') + '\n')
-
-    # Write the modified content to the output file
-    with open(output_file, 'w') as f:
-        f.writelines(modified_content)
+    """Replace the word 'reference' with the replacement string in a file, and blank out the first field of the first line (A1)."""
+    with open(input_file, 'r') as f_in, open(output_file, 'w') as f_out:
+        for i, line in enumerate(f_in):
+            # Replace 'strain' with 'WGS_ID' and 'reference' with the replacement string
+            #line = re.sub(r'\bstrain\b', "WGS_ID", line)
+            line = re.sub(r'\breference\b', replacement, line)
+            # Remove any trailing tab/newline before re-adding a clean newline
+            line = line.rstrip('\t\n')
+            if i == 0:
+                # Blank out the first field (A1) of the header line
+                fields = line.split('\t')
+                fields[0] = ""
+                line = '\t'.join(fields)
+            f_out.write(line + '\n')
 
 def main(newick_file, snp_matrix_file, centroid_info_file, output_prefix, metadata):
     # Step 1: Extract the centroid string

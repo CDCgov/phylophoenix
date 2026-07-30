@@ -4,10 +4,9 @@
 """Provide functions to merge multiple versions.yml files."""
 
 
+import yaml
 import platform
 from textwrap import dedent
-
-import yaml
 
 
 def _make_versions_html(versions):
@@ -64,12 +63,8 @@ def main():
     # aggregate versions by the module name (derived from fully-qualified process name)
     versions_by_module = {}
     for process, process_versions in versions_by_process.items():
-        versions_by_module[process] = process_versions  # Keep full process path
         module = process.split(":")[-1]
         try:
-            print(f"Comparing versions for module '{module}':")
-            print(f"  Existing versions: {versions_by_module[module]}")
-            print(f"  New versions: {process_versions}")
             if versions_by_module[module] != process_versions:
                 raise AssertionError(
                     "We assume that software versions are the same between all modules. "

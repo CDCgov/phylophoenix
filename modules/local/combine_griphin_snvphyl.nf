@@ -8,6 +8,7 @@ process COMBINE_GRIPHIN_SNVPHYL {
     path(griphin_report)
     path(blind_list)
     val(window_size)
+    val(combine_complexes)
 
     output:
     path("SNVPhyl_GRiPHin_Summary.xlsx"), emit: updated_samplesheet
@@ -16,12 +17,13 @@ process COMBINE_GRIPHIN_SNVPHYL {
     script:
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
     def ica = params.ica ? "python ${params.bin_dir}" : ""
+    def combine_complexes_arg = combine_complexes ? "--combine_complex" : ""
     def blind_names = blind_list ? "--blind_list ${blind_list}" : ""
     // get container info
     def container_version = "base_v2.2.0"
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
-    ${ica}combine_griphin_snvphyl.py -g ${griphin_report} --window_size ${window_size} ${blind_names}
+    ${ica}combine_griphin_snvphyl.py -g ${griphin_report} --window_size ${window_size} ${blind_names} ${combine_complexes_arg}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

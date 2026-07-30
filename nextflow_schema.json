@@ -52,6 +52,12 @@
                     "description": "Use in conjunction with --by_st if you want to use the secondary MLST schema to sort samples for analysis.",
                     "fa_icon": "fas fa-keyboard"
                 },
+                "combine_complex": {
+                    "type": "boolean",
+                    "default": "False",
+                    "description": "Group species belonging to the same species complex (e.g. Citrobacter freundii complex) for analysis.",
+                    "fa_icon": "fas fa-keyboard"
+                },
                 "metadata": {
                     "type": "string",
                     "format": "file-path",

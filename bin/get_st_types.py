@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import sys
+sys.dont_write_bytecode = True
 import pandas as pd
 import argparse
 import csv
 import glob
+from species_complexes import collapse_species_complex
 
 ## Written by Jill Hagey (qpk9@cdc.gov)
 
@@ -12,11 +15,12 @@ def get_version():
     return "1.0.0"
 
 def parseArgs(args=None):
-    parser = argparse.ArgumentParser(description='Script to generate a PhoeNix summary excel sheet.')
+    parser = argparse.ArgumentParser(description='Script to separate taxa by ST type.')
     parser.add_argument('-s', '--samplesheet', default=None, required=False, dest='samplesheet', help='GRiPHin samplesheet of sample,directory in csv format.')
     parser.add_argument('-g', '--griphin_report', required=False, dest='griphin_report', help='A griphin excel report.')
     parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
     parser.add_argument('--use_secondary_mlst', default=False, action='store_true', required=False, dest='use_secondary_mlst', help='Use secondary MLST scheme.')
+    parser.add_argument('--combine_complex', default=False, action='store_true', required=False, dest='combine_complex', help='Group species belonging to the same species complex (e.g. Citrobacter freundii complex) together instead of treating them as separate taxa.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
@@ -33,12 +37,9 @@ def blind_map(control_file):
                 rename_mapping[new_sample_name] = old_sample_name
     return rename_mapping
 
-def get_st_groups(griphin_report, use_secondary_mlst):
-    """Get unique ST groups from griphin report.
-
-    Returns a dict where keys are "<Final_Taxa_ID_with_underscores>_<Primary_MLST>"
-    and values are lists of WGS_IDs for groups that share the same Primary_MLST
-    and Final_Taxa_ID and have at least 2 samples.
+def get_st_groups(griphin_report, use_secondary_mlst, combine_complex):
+    """Get unique ST groups from griphin report. Returns a dict where keys are "<Final_Taxa_ID_with_underscores>_<Primary_MLST>" 
+    and values are lists of WGS_IDs for groups that share the same Primary_MLST and Final_Taxa_ID and have at least 2 samples.
     """
     df = pd.read_excel(griphin_report, header=1)
     # Determine which MLST column to use
@@ -52,6 +53,11 @@ def get_st_groups(griphin_report, use_secondary_mlst):
             mlst_col = "Secondary_MLST"
     else:
         mlst_col = "Primary_MLST"
+    # Collapse species complex members into a single taxa label before grouping, so e.g. A. baumannii and A. pittii samples of the same ST are grouped together (same for the other complexes handled above).
+    # Only done when --combine_complex is passed.
+    df = df.copy()
+    if combine_complex:
+        df["Final_Taxa_ID"] = df["Final_Taxa_ID"].apply(collapse_species_complex)
     # remove rows that do not have a conventional ST (those containing "-")
     clean_df = df[~df[mlst_col].str.contains("-", na=False)]
     # remove Novel_allele rows
@@ -75,7 +81,6 @@ def get_st_groups(griphin_report, use_secondary_mlst):
     if not st_dict:
         raise ValueError("After removing Novel MLSTs there are no ST/taxa groups with at least 2 isolates (min 2) to run Phylophoenix. This set can only be run all together.")
     return st_dict
-
 
 def create_sample_sheets(st_dict, samplesheet, blind_list):
     """Create a samplesheet with the assemblies for each Seq Type. Also, creates samplesheet to run SNVPhyl for each Seq Type."""
@@ -116,7 +121,7 @@ def combine_samplesheets():
 
 def main():
     args = parseArgs()
-    st_dict = get_st_groups(args.griphin_report, args.use_secondary_mlst) # open the excel sheet get sample names organized by their ST types
+    st_dict = get_st_groups(args.griphin_report, args.use_secondary_mlst, args.combine_complex) # open the excel sheet get sample names organized by their ST types
     create_sample_sheets(st_dict, args.samplesheet, args.blind_list) # go back to the samplesheet and keep only lines this matching samplenames
     combine_samplesheets()
 

@@ -19,18 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Similar to PHoeNIx moved container calling to sha256 instead of tag.  
 - Refactored pipeline to remove generate_line modules.  
 - Added window size and hqSNV range information to griphin report.  
-- Now separates by taxa automatically for analysis.  
+- Now separates by taxa automatically for analysis. Species in complexes including, [Enterobacter cloacae complex](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?command=show&mode=tree&id=354276&lvl=), [Citrobacter freundii complex](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?command=show&mode=tree&id=1344959&lvl=), [Burkholderia cepacia complex](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?searchTerm=Burkholderia+cepacia+complex&searchMode=complete+name&lock=1&unlock=1&command=search&curr_id=1344959&lvl=3&filter=), and [Acinetobacter calcoaceticus/baumannii complex](https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?command=show&mode=tree&id=909768&lvl=) will be collapsed to their corresponding complex.  
 
 **Fixed Bugs:** 
 - Fixed --blind_list samples being excluded from by_st.  
 - Fixed unmerging and color-coding SNVPhyl sub-header.  
 - Blinded --blind_list samples in SNVPhyl section of GRiPHin report.  
 - Fixed failures being deleted in original directory samplesheet.  
+- Removes WGS_ID column header from SNVMatrix to properly format for MicroReact.  
 
 **Container Updates:**  
 - BCFTools updated from 1.15 to [1.22](https://github.com/samtools/bcftools/releases/tag/1.22).  
 - FreeBayes updated from  1.3.6 to [1.3.10](https://github.com/freebayes/freebayes/releases/tag/v1.3.10).  
-- Phyml was updated from 3.3.20220408 to [3.3.20250515](https://github.com/stephaneguindon/phyml/releases/tag/v3.3.20250515).  
+- Phyml was updated from 3.3.20220408 to [3.3.20250515](https://github.com/stephaneguindon/phyml/releases/tag/v3.3.20250515). Additionally, remade the container to close [#10](https://github.com/CDCgov/phylophoenix/issues/10) and [#8](https://github.com/CDCgov/phylophoenix/issues/8).  
 - Updated modules using phoenix base container from base_v2.1.0 to [base_v2.2.0](https://github.com/CDCgov/phoenix/blob/main/Dockerfiles/Dockerfile_base).  
 - snvphyl-tools
 

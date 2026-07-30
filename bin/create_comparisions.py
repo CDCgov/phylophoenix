@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import sys
+sys.dont_write_bytecode = True
 import pandas as pd
 import argparse
 import csv
 import glob
+from species_complexes import collapse_species_complex
 
 ## Written by Jill Hagey (qpk9@cdc.gov)
 
@@ -15,6 +18,7 @@ def parseArgs(args=None):
     parser = argparse.ArgumentParser(description='Script to generate a PhoeNix summary excel sheet.')
     parser.add_argument('-s', '--samplesheet', default=None, required=False, dest='samplesheet', help='GRiPHin samplesheet of sample,directory in csv format.')
     parser.add_argument('-g', '--griphin', default=None, required=False, dest='griphin', help='GRiPHin file.')
+    parser.add_argument('--combine_complex', default=False, action='store_true', required=False, dest='combine_complex', help='Group species belonging to the same species complex (e.g. Citrobacter freundii complex) together instead of treating them as separate taxa.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
@@ -42,9 +46,15 @@ def create_sample_sheets(samplesheet, taxa, sample_list):
             sample2 = combo[1].split('/')[-1].replace(".filtered.scaffolds.fa.gz","")
             new_samplesheet.write("\n" + sample1 + "_" + sample2 + "," + taxa + "," + seq_type + "," + str(combo[0]) + "," + str(combo[1]))
 
-def get_taxa_samples(griphin):
-    """Extract taxa groups and their corresponding sample lists from GRiPHin TSV file."""
+def get_taxa_samples(griphin, combine_complex):
+    """Extract taxa groups and their corresponding sample lists from GRiPHin TSV file.
+    If combine_complex is True, species belonging to a recognized species complex (see species_complexes.py) are grouped together under the complex name.
+    """
     df = pd.read_csv(griphin, sep='\t', header=0, dtype='str')
+    # Collapse species complex members into their complex-level name BEFORE converting spaces to underscores (collapse_species_complex expects space-separated genus/species names).
+    # Only done when --combine_complex is passed.
+    if combine_complex:
+        df['Final_Taxa_ID'] = df['Final_Taxa_ID'].apply(collapse_species_complex)
     df['Final_Taxa_ID'] = df['Final_Taxa_ID'].str.replace(' ', '_')  # Replace spaces with underscores in Final_Taxa_ID
     # Group samples by Final_Taxa_ID
     taxa_groups = {}
@@ -56,7 +66,7 @@ def get_taxa_samples(griphin):
 
 def main():
     args = parseArgs()
-    taxa_groups = get_taxa_samples(args.griphin) # get the taxa and samples from the griphin file
+    taxa_groups = get_taxa_samples(args.griphin, args.combine_complex) # get the taxa and samples from the griphin file
     for taxa, sample_list in taxa_groups.items():
         create_sample_sheets(args.samplesheet, taxa, sample_list) # go back to the samplesheet and keep only lines this matching samplenames
 
