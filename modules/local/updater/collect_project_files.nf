@@ -13,7 +13,7 @@ process COLLECT_PROJECT_FILES {
     tuple val(meta), path("*_old_GRiPHin.tsv"),       emit: griphin_tsv
     tuple val(meta), path("*_old_GRiPHin.xlsx"),      emit: griphin_excel
     tuple val(meta), path("Phoenix_Summary_Old.tsv"), emit: phoenix_tsv
-    tuple val(meta), path("*_software_versions.yml"), emit: software_versions_file
+    tuple val(meta), path("*_software_versions.yml"), optional: true, emit: update_software_versions
     path("versions.yml"),                             emit: versions
 
     script: 

@@ -42,27 +42,79 @@ workflow PHYLOPHOENIX_WF {
     if (params.use_secondary_mlst==true && params.by_st==false) {
         exit 1, "you passed --use_secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
     }
+
+    // // Check input path parameters to see if they exist
+    // if (params.input != null ) {  // if a samplesheet is passed
+    //     // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 
+    //     //input_samplesheet_path = Channel.fromPath(params.input, relative: true).map{ [it.toString().replaceAll(/([^\/]+$)/, "").replaceAll(/\/$/, "") ] }
+    //     //input_samplesheet_path = Channel.fromPath(params.input, relative: true)
+    //     if (params.input) { input_samplesheet_path = file(params.input) }
+    //     if (params.indir != null ) { //if samplesheet is passed and an input directory exit
+    //         exit 1, 'You need EITHER an input samplesheet or a directory! Just pick one.' 
+    //     } else { // if only samplesheet is passed check to make sure input is an actual file
+    //         indir = null  //keep input directory null if not passed
+    //         def checkPathParamList = [ params.input ]
+    //         for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
+    //     }
+    // } else { // if no samplesheet is passed
+    //     if (params.indir != null ) { // if no samplesheet is passed, but an input directory is given
+    //         input_samplesheet_path = []
+    //         def checkPathParamList = [ params.indir ]
+    //         for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
+    //         indir = params.indir
+    //     } else { // if no samplesheet is passed and no input directory is given
+    //         exit 1, 'You need EITHER an input samplesheet or a directory!' 
+    //     }
+    // }
+
+    // Check mandatory parameters
+    ch_versions = Channel.empty() // Used to collect the software versions
     // Check input path parameters to see if they exist
     if (params.input != null ) {  // if a samplesheet is passed
-        // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 
-        //input_samplesheet_path = Channel.fromPath(params.input, relative: true).map{ [it.toString().replaceAll(/([^\/]+$)/, "").replaceAll(/\/$/, "") ] }
         //input_samplesheet_path = Channel.fromPath(params.input, relative: true)
-        if (params.input) { input_samplesheet_path = file(params.input) }
         if (params.indir != null ) { //if samplesheet is passed and an input directory exit
             exit 1, 'You need EITHER an input samplesheet or a directory! Just pick one.' 
         } else { // if only samplesheet is passed check to make sure input is an actual file
-            indir = null  //keep input directory null if not passed
-            def checkPathParamList = [ params.input ]
+            def checkPathParamList = [ params.input, params.multiqc_config ]
             for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
+            ch_input_indir = null //keep input directory null if not passed
+            // get full path for input and make channel
+            if (params.input) { ch_input = file(params.input) }
         }
-    } else { // if no samplesheet is passed
-        if (params.indir != null ) { // if no samplesheet is passed, but an input directory is given
-            input_samplesheet_path = []
-            def checkPathParamList = [ params.indir ]
+    } else {
+/*        if (params.indir != null ) { // if no samplesheet is passed, but an input directory is given
+            ch_input = null //keep samplesheet input null if not passed
+            def checkPathParamList = [ params.indir, params.multiqc_config ]
             for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
-            indir = params.indir
+            ch_input_indir = Channel.fromPath(params.indir, relative: true, type: 'dir')
         } else { // if no samplesheet is passed and no input directory is given
-            exit 1, 'You need EITHER an input samplesheet or a directory!' 
+            exit 1, 'For --mode UPDATE_CDC_PHOENIX: You need EITHER an input samplesheet or a directory!' 
+        }
+    }*/
+        if (params.indir != null ) {
+
+            def checkPathParamList = [ params.indir, params.multiqc_config ]
+            for (param in checkPathParamList) {
+                if (param) { file(param, checkIfExists: true) }
+            }
+
+            //ch_input_indir = Channel.fromPath(params.indir, relative: true, type: 'dir')
+
+            // Build expected samplesheet path
+            def samplesheet_path = "${params.indir}/Directory_samplesheet.csv"
+
+            // Check it exists with a helpful error
+            if ( !file(samplesheet_path).exists() ) {
+                exit 1, "Expected samplesheet not found: ${samplesheet_path}\nMake sure Directory_samplesheet.csv exists inside --indir."
+            }
+
+            // Create channel input
+            ch_input = file(samplesheet_path)
+            params.indir = null // Set indir to null to avoid confusion later in the workflow since we have the samplesheet path now
+//            ch_input_indir = null // Set input directory to null since we have the samplesheet path now
+            params.input = samplesheet_path // Set input to the samplesheet path for consistency in the workflow
+        } else {
+            exit 1, 'For --mode UPDATE_CDC_PHOENIX: You need EITHER an input samplesheet or a directory!'
         }
     }
 
@@ -71,7 +123,7 @@ workflow PHYLOPHOENIX_WF {
     }
 
     main:
-        PHYLOPHOENIX ( input_samplesheet_path, indir, by_st, ch_versions )
+        PHYLOPHOENIX ( ch_input, by_st, ch_versions )
 }
 
 /*

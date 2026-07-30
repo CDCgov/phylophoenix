@@ -9,7 +9,6 @@ include { REMOVE_FAILURES    } from '../../modules/local/remove_failures'
 workflow GRIPHIN_WORKFLOW {
     take:
         input_samplesheet_path // channel: tuple val(meta), path('*.json'): FASTP_TRIMD.out.json --> PHOENIX_EXQC.out.paired_trmd_json
-        indir                  // channel: path to one PHoeNIx output directory containing all samples to be analyzed
         blind_list             // path: path to a blind list file (optional)
         version                // manifest version of the workflow
         ardb                   // path: path to ARDB database for GRiPHin
@@ -29,122 +28,57 @@ workflow GRIPHIN_WORKFLOW {
 
         // Check if input samplesheet or input directory has passed, then check if a control list was passed
         // we have to do all this to make sure paths can be relative
-        if (input_samplesheet_path != null) { // if samplesheet is passed
-            if (blind_list != null){ // if control list is passed allow it to be relative
+        if (blind_list != null){ // if control list is passed allow it to be relative
 
-                // Allow control list to be relative
-                blind_path = Channel.fromPath(blind_list, relative: true)
+            // Allow control list to be relative
+            blind_path = Channel.fromPath(blind_list, relative: true)
 
-                //create GRiPHin report
-                GRIPHIN (
-                    ardb,                                         // path(db)
-                    input_samplesheet_path,                       // path(original_samplesheet)
-                    griphin_inputs.map{ it.meta }.collect(),     // val(metas): list of [id:<sid>, filenames:[...]]
-                    griphin_inputs.map{ it.files }.collect(),    // path(griphin_files): flattened file list
-                    outdir,                                       // path(outdir): full_project_id
-                    version,                                      // val(phx_version)
-                    coverage,                                     // val(coverage)
-                    busco_bool,                                   // val(entry): busco_boolean
-                    shigapass_bool,                               // val(shigapass_detected)
-                    false,                                        // val(centar_detected)
-                    bldb,                                         // path(bldb)
-                    false,                                        // val(filter_var)
-                    true,                                         // val(dont_publish) --> need it for the naming of the output files
-                    blind_path,                                   // path(blind_list)
-                    orginal_phx_version                           // val(old_phx_version)
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-
-            } else {
-
-                //create GRiPHin report
-                GRIPHIN (
-                    ardb,                                         // path(db)
-                    input_samplesheet_path,                       // path(original_samplesheet)
-                    griphin_inputs.map{ it.meta }.collect(),  // val(metas): list of [id:<sid>, filenames:[...]]
-                    griphin_inputs.map{ it.files }.collect(), // path(griphin_files): flattened file list
-                    outdir,                                       // path(outdir): full_project_id
-                    version,                                      // val(phx_version)
-                    coverage,                                     // val(coverage)
-                    busco_bool,                                   // val(entry): busco_boolean
-                    shigapass_bool,                               // val(shigapass_detected)
-                    false,                                        // val(centar_detected)
-                    bldb,                                         // path(bldb)
-                    false,                                        // val(filter_var)
-                    true,                                         // val(dont_publish) --> need it for the naming of the output files
-                    [],                                           // path(blind_list)
-                    orginal_phx_version                           // val(old_phx_version)
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-            }
-            directory_samplesheet = GRIPHIN.out.converted_samplesheet
-        } else { // if no samplesheet is passed the we will make one
-
-            // Create samplesheet - while GRiPHin can create a samplesheet for you, due to nextflow/softlinks etc this results in failures at the create_meta step.
-            // so we are just using another process to create the samplesheet :)
-            // sample_id,/path/sample_folder
-            CREATE_SAMPLESHEET (
-                indir
+            //create GRiPHin report
+            GRIPHIN (
+                ardb,                                         // path(db)
+                input_samplesheet_path,                       // path(original_samplesheet)
+                griphin_inputs.map{ it.meta }.collect(),     // val(metas): list of [id:<sid>, filenames:[...]]
+                griphin_inputs.map{ it.files }.collect(),    // path(griphin_files): flattened file list
+                outdir,                                       // path(outdir): full_project_id
+                version,                                      // val(phx_version)
+                coverage,                                     // val(coverage)
+                busco_bool,                                   // val(entry): busco_boolean
+                shigapass_bool,                               // val(shigapass_detected)
+                false,                                        // val(centar_detected)
+                bldb,                                         // path(bldb)
+                true,                                         // val(filter_var)
+                false,                                         // val(dont_publish) --> need it for the naming of the output files
+                blind_path,                                   // path(blind_list)
+                orginal_phx_version                           // val(old_phx_version)
             )
-            ch_versions = ch_versions.mix(CREATE_SAMPLESHEET.out.versions)
+            ch_versions = ch_versions.mix(GRIPHIN.out.versions)
 
-            if (blind_list != null){ // if control list is passed allow it to be relative
-                // Allow control list to be relative
-                blind_path = Channel.fromPath(blind_list, relative: true)
+        } else {
 
-                //create GRiPHin report
-                GRIPHIN (
-                    ardb,                                         // path(db)
-                    CREATE_SAMPLESHEET.out.samplesheet,          // path(original_samplesheet)
-                    griphin_inputs.map{ it.meta }.collect(),  // val(metas): list of [id:<sid>, filenames:[...]]
-                    griphin_inputs.map{ it.files }.collect(), // path(griphin_files): flattened file list
-                    outdir,                                       // path(outdir): full_project_id
-                    version,                                      // val(phx_version)
-                    coverage,                                     // val(coverage)
-                    busco_bool,                                   // val(entry): busco_boolean
-                    shigapass_bool,                               // val(shigapass_detected)
-                    false,                                        // val(centar_detected)
-                    bldb,                                         // path(bldb)
-                    false,                                        // val(filter_var)
-                    true,                                         // val(dont_publish) --> need it for the naming of the output files
-                    blind_path,                                   // path(blind_list)
-                    orginal_phx_version                           // val(old_phx_version)
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-
-                /*GRIPHIN (
-                    ardb, CREATE_SAMPLESHEET.out.samplesheet, prefix, blind_path, version, coverage, bldb, busco_bool
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)*/
-            } else {
-
-                //create GRiPHin report
-                GRIPHIN (
-                    ardb,                                         // path(db)
-                    CREATE_SAMPLESHEET.out.samplesheet,            // path(original_samplesheet)
-                    griphin_inputs.map{ it.meta }.collect(),  // val(metas): list of [id:<sid>, filenames:[...]]
-                    griphin_inputs.map{ it.files }.collect(), // path(griphin_files): flattened file list
-                    outdir,                                       // path(outdir): full_project_id
-                    version,                                      // val(phx_version)
-                    coverage,                                     // val(coverage)
-                    busco_bool,                                   // val(entry): busco_boolean
-                    shigapass_bool,                               // val(shigapass_detected)
-                    false,                                        // val(centar_detected)
-                    bldb,                                         // path(bldb)
-                    false,                                        // val(filter_var)
-                    true,                                         // val(dont_publish) --> need it for the naming of the output files
-                    [],                                           // path(blind_list)
-                    orginal_phx_version                           // val(old_phx_version)
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-
-                /*GRIPHIN (
-                    ardb, CREATE_SAMPLESHEET.out.samplesheet,  prefix, blind_path, version, coverage, bldb, busco_bool
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)*/
-            }
-            directory_samplesheet = CREATE_SAMPLESHEET.out.samplesheet
+            //create GRiPHin report
+            GRIPHIN (
+                ardb,                                         // path(db)
+                input_samplesheet_path,                       // path(original_samplesheet)
+                griphin_inputs.map{ it.meta }.collect(),  // val(metas): list of [id:<sid>, filenames:[...]]
+                griphin_inputs.map{ it.files }.collect(), // path(griphin_files): flattened file list
+                outdir,                                       // path(outdir): full_project_id
+                version,                                      // val(phx_version)
+                coverage,                                     // val(coverage)
+                busco_bool,                                   // val(entry): busco_boolean
+                shigapass_bool,                               // val(shigapass_detected)
+                false,                                        // val(centar_detected)
+                bldb,                                         // path(bldb)
+                true,                                        // val(filter_var)
+                false,                                         // val(dont_publish) --> need it for the naming of the output files
+                [],                                           // path(blind_list)
+                orginal_phx_version                           // val(old_phx_version)
+            )
+            ch_versions = ch_versions.mix(GRIPHIN.out.versions)
         }
+        directory_samplesheet = GRIPHIN.out.converted_samplesheet
+
+        GRIPHIN.out.griphin_tsv_report.view { it -> println "GRiPHin TSV report: ${it}" }
+        GRIPHIN.out.converted_samplesheet.view { it -> println "Directory samplesheet: ${it}" }
 
         // Identify samples failed PHX specs
         REMOVE_FAILURES(

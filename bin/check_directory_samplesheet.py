@@ -15,13 +15,15 @@ from collections import defaultdict
 def get_version():
     return "1.1.0"
 
+__version__ = "1.1.0"
+
 def parse_args(args=None):
     Description = "Reformat cdcgov/phoenix samplesheet file and check its contents."
     Epilog = "Example usage: python check_samplesheet.py <FILE_IN> <FILE_OUT>"
     parser = argparse.ArgumentParser(description=Description, epilog=Epilog)
     parser.add_argument("FILE_IN", help="Input samplesheet file.")
     parser.add_argument("FILE_OUT", help="Output file.")
-    parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
+    parser.add_argument('--version', action='version', version=f'%(prog)s: {__version__}')# Add an argument to display the version
     parser.add_argument('--updater', default=False, action='store_true',)# Add an argument to display the version
     parser.add_argument('--sheet_by_dir', default=False, action='store_true',)# Add an argument to display the version
     return parser.parse_args(args)
@@ -124,7 +126,12 @@ def check_samplesheet(file_in, file_out, updater, sheet_by_dir):
             #files.append(sample_path + "/assembly/" + sample_name + ".filtered.scaffolds.fa.gz")
             #files.append(sample_path + "/annotation/" + sample_name + ".faa")
             #files.append(sample_path + "/annotation/" + sample_name + ".gff")
-            files.append(sample_path + "/" + sample_name + "_summaryline.tsv")
+            if Path(sample_path + "/" + sample_name + "_summaryline.tsv").exists():
+                files.append(sample_path + "/" + sample_name + "_summaryline.tsv")
+            elif Path(sample_path + "/" + sample_name + "_summaryline_failure.tsv").exists():
+                files.append(sample_path + "/" + sample_name + "_summaryline_failure.tsv")
+            else:
+                print("WARNING: No summaryline file found for sample {} in directory {}. This may indicate that the sample failed processing.".format(sample_name, sample_path))
             files.append(sample_path + "/" + sample_name + ".synopsis")
             if updater == False: # when updater is run we don't need the files we still want the old samples in the samplesheet
                 print("updater is set to false, so we are checking the files")

@@ -13,7 +13,6 @@ from pathlib import Path
 
 logger = logging.getLogger()
 
-
 class RowChecker:
     """
     Define a service that can validate and transform each given row.
@@ -211,10 +210,7 @@ def check_samplesheet(file_in, file_out):
         writer.writeheader()
         for row in checker.modified:
             writer.writerow(row)
-
-# Function to get the script version
-def get_version():
-    return "1.0.0"
+__version__="1.1.0"
 
 def parse_args(argv=None):
     """Define and immediately parse command line arguments."""
@@ -222,7 +218,7 @@ def parse_args(argv=None):
     parser.add_argument("file_in", metavar="FILE_IN", type=Path, help="Tabular input samplesheet in CSV or TSV format." )
     parser.add_argument( "file_out", metavar="FILE_OUT", type=Path, help="Transformed output samplesheet in CSV format.")
     parser.add_argument( "-l", "--log-level", help="The desired log level (default WARNING).", choices=("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"), default="WARNING" )
-    parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
+    parser.add_argument('--version', action='version', version=f'%(prog)s: {__version__}')# Add an argument to display the version
     return parser.parse_args(argv)
 
 def main(argv=None):

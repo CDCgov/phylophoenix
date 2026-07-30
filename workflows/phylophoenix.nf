@@ -121,7 +121,6 @@ def get_taxa_and_project_ID(input_ch){
 workflow PHYLOPHOENIX {
     take:
         input_samplesheet_path
-        indir
         by_st
         ch_versions
 
@@ -134,7 +133,7 @@ workflow PHYLOPHOENIX {
         // Create input channels for files we need to make griphin
         CREATE_INPUT_CHANNELS (
             // False is to say if centar is to be included when creating input channels
-            indir, input_samplesheet_path,  false
+            input_samplesheet_path,  false
         )
         ch_versions = ch_versions.mix(CREATE_INPUT_CHANNELS.out.versions)
 
@@ -186,16 +185,21 @@ workflow PHYLOPHOENIX {
             )
             .groupTuple()
             .map { meta, files ->
+                def cleaned = files.findAll { f ->
+                    def ok = f != null && (f instanceof java.nio.file.Path || f instanceof nextflow.file.FileHolder)
+                    if (!ok) println "WARNING [${meta.id}]: dropping invalid file entry: ${f}"
+                    ok
+                }
+
                 [
-                    meta: [ id: "${meta.id}", filenames: files.collect { it.getName() } ],
-                    files: files
+                    meta: [ id: "${meta.id}", filenames: cleaned.collect { it.getName() } ],
+                    files: cleaned
                 ]
             }
 
         // Create report
         GRIPHIN_WORKFLOW (
             input_samplesheet_path,
-            indir,
             params.blind_list,
             workflow.manifest.version,
             params.ardb,
