@@ -6,6 +6,7 @@ workflows:
     filter: 
       - branches:
         - main
+        - dev
     readMePath: README.md
     authors:
       - orcid: 0000-0002-1308-3429
