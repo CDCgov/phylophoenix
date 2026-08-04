@@ -32,7 +32,6 @@ def get_ids_if_content_beyond_header(metadata):
             ids.append(first_data_line[0])
         except StopIteration:
             raise ValueError("The metadata file is empty.")
-        
         # Continue reading the rest of the file to get all IDs in the first column
         for row in reader:
             if row:  # Check if row is not empty
@@ -50,10 +49,8 @@ def verify_ids_in_metadata(ids, ids_to_keep):
 def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
     # Extract seq_type from the filename using regex
     match = re.search(r'_(.*?)_', st_snv_samplesheets)
-
     # Check if there is data in the metadata file and collect ids if present
     ids_in_meta = get_ids_if_content_beyond_header(metadata)
-
     # Collect the WGS_IDs from the first file
     ids_to_keep = []
     with open(st_snv_samplesheets, 'r') as reader:
@@ -65,22 +62,18 @@ def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
 
     # Check that all ids to keep are in the metadata file. 
     verify_ids_in_metadata(ids_in_meta, ids_to_keep)
-
     # Filter the metadata file to keep only the relevant rows
     with open(metadata, 'r') as reader:
         lines = reader.readlines()  # Read all lines
         header = lines[0]
         filtered_lines = [header]  # Initialize with the header
-
         for line in lines[1:]:  # Process remaining lines
             meta_columns = line.strip().split('\t')[0]
             if meta_columns in ids_to_keep:
                 filtered_lines.append(line)
-
     # Check if the filtered result contains more than just the header
-    #if len(filtered_lines) <= 1:
-    #    raise ValueError(f"The metadata file is empty or contains only headers. PhyloPHoeNIx expects all samples to be in the metadata file, leave cells blank if there is no data for them, but include the WGS_ID in the first column.")
-
+    # if len(filtered_lines) <= 1:
+    #     raise ValueError(f"The metadata file is empty or contains only headers. PhyloPHoeNIx expects all samples to be in the metadata file, leave cells blank if there is no data for them, but include the WGS_ID in the first column.")
     # Rewrite the original metadata file with the filtered content
     with open(seq_type + "_metadata.tsv", 'w') as writer:
         writer.writelines(filtered_lines)
@@ -91,11 +84,9 @@ def quality_check(samplesheet, metadata):
     samplesheet.columns = samplesheet.columns.str.lower()
     # Extract sample from the samplesheet file
     samplesheet_wgs_ids = samplesheet['sample'].tolist()
-
     with open(metadata, "r") as f:
         sample = f.read(2048)  # read first chunk
         delimiter = csv.Sniffer().sniff(sample).delimiter
-
     # Load metadata files
     metadata = pd.read_csv(metadata, sep=delimiter)
     #rename all columns to lowercase

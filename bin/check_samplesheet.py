@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-
 """Provide a command line tool to validate and transform tabular samplesheets."""
-
 
 import argparse
 import csv
@@ -16,17 +14,12 @@ logger = logging.getLogger()
 class RowChecker:
     """
     Define a service that can validate and transform each given row.
-
     Attributes:
         modified (list): A list of dicts, where each dict corresponds to a previously
             validated and transformed row. The order of rows is maintained.
-
     """
 
-    VALID_FORMATS = (
-        ".fq.gz",
-        ".fastq.gz",
-    )
+    VALID_FORMATS = (".fq.gz", ".fastq.gz" )
 
     def __init__(
         self,
@@ -61,11 +54,7 @@ class RowChecker:
     def validate_and_transform(self, row):
         """
         Perform all validations on the given row and insert the read pairing status.
-
-        Args:
-            row (dict): A mapping from column headers (keys) to elements of that row
-                (values).
-
+        Args: row (dict): A mapping from column headers (keys) to elements of that row (values).
         """
         self._validate_sample(row)
         self._validate_first(row)
@@ -102,16 +91,14 @@ class RowChecker:
         if not any(filename.endswith(extension) for extension in self.VALID_FORMATS):
             raise AssertionError(
                 f"The FASTQ file has an unrecognized extension: {filename}\n"
-                f"It should be one of: {', '.join(self.VALID_FORMATS)}"
+                f"It should be one of: {", ".join(self.VALID_FORMATS)}"
             )
 
     def validate_unique_samples(self):
         """
         Assert that the combination of sample name and FASTQ filename is unique.
-
         In addition to the validation, also rename all samples to have a suffix of _T{n}, where n is the
         number of times the same sample exist, but with different FASTQ files, e.g., multiple runs per experiment.
-
         """
         if len(self._seen) != len(self.modified):
             raise AssertionError("The pair of sample name and FASTQ must be unique.")
@@ -119,7 +106,7 @@ class RowChecker:
         for row in self.modified:
             sample = row[self._sample_col]
             seen[sample] += 1
-            #row[self._sample_col] = f"{sample}_T{seen[sample]}"
+            # row[self._sample_col] = f"{sample}_T{seen[sample]}"
             row[self._sample_col] = f"{sample}"
 
 
@@ -203,14 +190,14 @@ def check_samplesheet(file_in, file_out):
                 sys.exit(1)
         checker.validate_unique_samples()
     header = list(reader.fieldnames)
-    #header.insert(1, "single_end")
+    # header.insert(1, "single_end")
     # See https://docs.python.org/3.9/library/csv.html#id3 to read up on `newline=""`.
     with file_out.open(mode="w", newline="") as out_handle:
         writer = csv.DictWriter(out_handle, header, delimiter=",")
         writer.writeheader()
         for row in checker.modified:
             writer.writerow(row)
-__version__="1.1.0"
+__version__ = "1.1.0"
 
 def parse_args(argv=None):
     """Define and immediately parse command line arguments."""
@@ -218,7 +205,7 @@ def parse_args(argv=None):
     parser.add_argument("file_in", metavar="FILE_IN", type=Path, help="Tabular input samplesheet in CSV or TSV format." )
     parser.add_argument( "file_out", metavar="FILE_OUT", type=Path, help="Transformed output samplesheet in CSV format.")
     parser.add_argument( "-l", "--log-level", help="The desired log level (default WARNING).", choices=("CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"), default="WARNING" )
-    parser.add_argument('--version', action='version', version=f'%(prog)s: {__version__}')# Add an argument to display the version
+    parser.add_argument("--version", action="version", version=f"%(prog)s: {__version__}")  # Add an argument to display the version
     return parser.parse_args(argv)
 
 def main(argv=None):

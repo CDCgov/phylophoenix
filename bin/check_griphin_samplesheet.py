@@ -20,7 +20,7 @@ def parse_args(args=None):
     description="Validate a file-of-filepaths (one filepath per line).",  epilog="Example usage: python check_samplesheet.py <FILE_IN> <FILE_OUT>", )
     parser.add_argument("FILE_IN", help="Input file (one filepath per line).")
     parser.add_argument("FILE_OUT", help="Output file.")
-    parser.add_argument('--version', action='version', version=f'%(prog)s: {__version__}')
+    parser.add_argument("--version", action="version", version=f"%(prog)s: {__version__}")
     return parser.parse_args(args)
 
 def make_dir(path):
@@ -42,18 +42,12 @@ def check_for_duplicates(paths: pd.Series):
     dup_mask = paths.duplicated(keep=False)
     if dup_mask.any():
         dups = paths[dup_mask].tolist()
-        raise ValueError(
-            "Duplicate filepath(s) found (file locations must be unique):\n"
-            + "\n".join(sorted(set(dups)))
-        )
+        raise ValueError( "Duplicate filepath(s) found (file locations must be unique):\n" + "\n".join(sorted(set(dups))))
 
 def check_files_exist(paths: pd.Series):
     missing = [p for p in paths if not Path(p).exists()]
     if missing:
-        raise ValueError(
-            "The following file(s) do not exist but are required:\n"
-            + "\n".join(missing)
-        )
+        raise ValueError( "The following file(s) do not exist but are required:\n" + "\n".join(missing))
 
 def check_file_types(paths: pd.Series):
     suffixes = paths.apply(lambda p: Path(p).suffix.lower())
@@ -67,7 +61,7 @@ def check_file_types(paths: pd.Series):
     if len(unique) != 1:
         raise ValueError(f"Mixed file types detected: {unique}. Files must all be the same type.")
 
-    return unique[0]  # '.tsv' or '.xlsx'
+    return unique[0]  # ".tsv" or ".xlsx"
 
 def check_samplesheet(file_in, file_out):
     paths = read_paths(file_in)

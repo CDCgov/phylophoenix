@@ -50,7 +50,7 @@ def append_tsv_to_excel(old_griphin, snvmatrices):
 
     # Set up Excel writer with xlsxwriter engine for formatting
     #with pd.ExcelWriter("GRiPHin_Summary.xlsx", engine='xlsxwriter') as writer:
-       # Load the existing workbook into writer to keep the formatting
+        # Load the existing workbook into writer to keep the formatting
     #    writer.book = workbook
     #    writer.sheets = {ws.title: ws for ws in workbook.worksheets}
     #    worksheet = writer.sheets[sheet.title]
