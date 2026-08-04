@@ -38,6 +38,9 @@ task phylophoenix {
       echo "${samplename},${project_directory}" >> samples_directory.csv
     done
 
+    #set input variable
+    input_file="--input samples_directory.csv"
+
     #checking variables
     echo $version
     echo $window_size
@@ -46,7 +49,9 @@ task phylophoenix {
     echo $use_secondary_mlst
     echo $combine_complex
 
-    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{~{output_folder_name}} --terra true $input_file ~{true='--by_st' false='' by_st} ~{true='--no_all' false='' no_all} ~{true='--combine_complex' false='' combine_complex} --window_size ~{window_size}--tmpdir $TMPDIR --max_cpus ~{cpu} --max_memory '~{memory}.GB' ; then
+    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{output_folder_name} --terra true $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
+        ~{true='--by_st' false='' by_st} ~{true='--no_all' false='' no_all} ~{true='--combine_complex' false='' combine_complex} ~{true='--use_secondary_mlst' false='' use_secondary_mlst} \
+        --window_size ~{window_size} --tmpdir $TMPDIR --max_cpus ~{cpu} --max_memory '~{memory}.GB' ; then
       # Everything finished, pack up the results and clean up
       #tar -cf - work/ | gzip -n --best > work.tar.gz
       rm -rf .nextflow/ work/

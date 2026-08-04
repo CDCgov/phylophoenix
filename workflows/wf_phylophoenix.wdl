@@ -15,16 +15,12 @@ workflow phylophoenix_workflow {
     Boolean?    use_secondary_mlst
     Boolean?    combine_complex
     File?       blind_list
-    Int         memory
-    Int         cpu
-    Int         disk_size
   }
   call phylophoenix_nf.phylophoenix {
     input:
       current_full_results = current_full_results,
       output_folder_name   = output_folder_name,
       window_size          = window_size,
-      input_assembly       = input_assembly,
       no_all               = no_all,
       by_st                = by_st,
       use_secondary_mlst   = use_secondary_mlst,
