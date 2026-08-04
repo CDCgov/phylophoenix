@@ -1,10 +1,10 @@
 version: 1.2 # The .dockstore.yml schema version
 workflows:
   - name: phylophoenix
-  - subclass: WDL
+    subclass: WDL
     primaryDescriptorPath: /workflows/wf_phylophoenix.wdl
-    filter: 
-      - branches:
+    filter:
+      branches:
         - main
         - dev
     readMePath: README.md
