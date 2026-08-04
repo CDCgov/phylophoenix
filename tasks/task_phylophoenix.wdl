@@ -6,7 +6,7 @@ task phylophoenix {
     String?     output_folder_name = "phylophx_output"
     Boolean?    no_all = false
     Boolean?    by_st = false
-    File?       blind_list = null
+    File?       blind_list
     Boolean?    use_secondary_mlst = false
     Boolean?    combine_complex = false
     Int?        window_size = 500
