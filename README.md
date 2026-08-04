@@ -21,7 +21,12 @@
 Org: CDC/NCEZID/DHQP/CEMB  
 Contact Email: ncezid_shareit@cdc.gov  
 
-The SHARE IT Act is a federal law that says government agencies like CDC must be more transparent about the software we build using federal funds. It CDC publishes a public list that describes what custom-developed software we’ve created. This helps other agencies know what exists so we’re not reinventing the wheel.  
+Description: PhyloPHoeNIx is a Nextflow-based bioinformatics pipeline developed by the CDC's Division of Healthcare Quality Promotion to support genomic surveillance of antimicrobial-resistant, healthcare-associated pathogens. Designed to work alongside its companion pipeline PHoeNIx, it automates outbreak analysis, builds SNV matrices and phylogenetic trees, and reports core genome coverage to help public health labs track pathogen relatedness. Its containerized design ensures easy installation and reproducible results, with outputs compatible with visualization tools like Microreact.
+
+Languages: Python, Nextflow, Shell, Other
+
+Purpose of the SHARE IT Act:
+The SHARE IT Act is a federal law that says government agencies like CDC must be more transparent about the software we build using federal funds. It CDC publishes a public list that describes what custom-developed software we’ve created. This helps other agencies know what exists so we’re not reinventing the wheel.
 
 ## Introduction
 
@@ -38,7 +43,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io), a workflow tool
 
 ## Quick Start
 
-1. Install [`Nextflow`](https://www.nextflow.io/docs/latest/getstarted.html#installation) (`>=22.10.1`)
+1. Install [`Nextflow`](https://www.nextflow.io/docs/latest/getstarted.html#installation) (`>=25.10.2`)
 
 2. Install any of [`Docker`](https://docs.docker.com/engine/installation/) or [`Singularity`](https://www.sylabs.io/guides/3.0/user-guide/) (you can follow [this tutorial](https://singularity-tutorial.github.io/01-installation/)) for full pipeline reproducibility.
 
@@ -147,9 +152,11 @@ The core of PhyloPHoeNIx is a pipleline originally developed by @apetkau (Aaron 
 
 We thank the following people for their extensive assistance and test in the development of this pipeline:
 
-* Nick Vlachos [@nvlachos](https://github.com/nvlachos)
-* Thao Masters [@masters-thao](https://github.com/masters-thao)
-* Alyssa Kent [@Alyssa-Kent](https://github.com/Alyssa-Kent)
+* Jill V. Hagey, MS, PhD [@jvhagey](jvhagey.github.io)
+* Alyssa Kent, MS, PhD [@Alyssa-Kent](https://github.com/Alyssa-Kent)
+* Thao Masters, PhD [@masters-thao](https://github.com/masters-thao)
+* Anusha Reddy Ginni, MS [@aginnimb](https://github.com/aginnimb)
+* Nick Vlachos, MS [@nvlachos](https://github.com/nvlachos)
 
 Add beta testers here....
 
