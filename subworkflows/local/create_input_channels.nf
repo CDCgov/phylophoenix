@@ -259,6 +259,7 @@ workflow CREATE_INPUT_CHANNELS {
         griphin_excel_ch = COLLECT_PROJECT_FILES.out.griphin_excel
         griphin_tsv_ch = COLLECT_PROJECT_FILES.out.griphin_tsv
         phoenix_tsv_ch = COLLECT_PROJECT_FILES.out.phoenix_tsv.map{it -> InputChannelUtils.add_entry_meta(it)}
+        pipeline_info_ch = COLLECT_PROJECT_FILES.out.software_versions_file
 
         valid_samplesheet = samplesheet
 
@@ -315,4 +316,5 @@ workflow CREATE_INPUT_CHANNELS {
         sample_needs_update_ch
         mode_type = mode_type_ch
         fairy_passed_scaffolds = fairy_passed_scaffolds_ch
+        pipeline_info          = pipeline_info_ch
 }
