@@ -113,6 +113,7 @@ def check_samplesheet(file_in, file_out, updater, sheet_by_dir):
                 path = str(dir).strip()
                 sample_path = path
                 project_path = "/".join(sample_path.split("/")[:-1])
+                print("PRoject path is " + project_path)
             # files.append(path + "/" + sample_folder + "/file_integrity/" + sample_name + "_scaffolds_summary.txt")
             files.append(project_path + "/" + "Phoenix_Summary.tsv")
             files.append(sample_path + "/fastp_trimd/" + sample_name + "_1.trim.fastq.gz")
