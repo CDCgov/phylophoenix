@@ -31,23 +31,24 @@ task phylophoenix {
     for tarball in ~{sep=' ' current_full_results}; do
       samplename=$(basename "${tarball}" .tar.gz)
       # Untar data to update
-      mkdir -p "./full_${samplename}_results"
-      ls ./full_${samplename}_results
-      ls ./full_${samplename}_results/*
-      tar -xzf "${tarball}" -C "./full_${samplename}_results"
-      project_directory="/mnt/disks/cromwell_root/full_${samplename}_results/${samplename}/phx_output/${samplename}"
+      mkdir -p "./full_results"
+      tar -xzf "${tarball}" -C "./full_results"
+      project_directory="/mnt/disks/cromwell_root/full_results/${samplename}/phx_output/${samplename}"
       # Append this sample's line to the shared samples_directory.csv
       echo "${samplename},${project_directory}" >> samples_directory.csv
     done
 
     #set input variable
     input_file="--input ../samples_directory.csv"
+    ls ./full_results
+    ls ./full_results/*
+    ls ./full_results/*/phx_output
     more samples_directory.csv
 
     #checking variables
     ls
     echo "Running phylophoenix with the following parameters:"
-    echo "version: $version"
+    echo "version: \$version"
     echo "window_size: ${window_size}"
     echo "no_all: ${no_all}"
     echo "by_st: ${by_st}"
