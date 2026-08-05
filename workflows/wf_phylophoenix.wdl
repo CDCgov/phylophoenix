@@ -9,7 +9,7 @@ workflow phylophoenix_workflow {
   input {
     Array[File] current_full_results
     Int?        window_size
-    String      output_folder_name
+    String?     output_folder_name
     Boolean?    no_all
     Boolean?    by_st
     Boolean?    use_secondary_mlst
