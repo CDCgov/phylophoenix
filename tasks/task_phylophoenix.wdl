@@ -39,9 +39,10 @@ task phylophoenix {
     done
 
     #set input variable
-    input_file="--input samples_directory.csv"
+    input_file="--input ../samples_directory.csv"
 
     #checking variables
+    ls
     echo $version
     echo $window_size
     echo $no_all
@@ -51,6 +52,7 @@ task phylophoenix {
 
     mkdir phylophx_run
     cd phylophx_run
+    ls
 
     if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{output_folder_name} --terra true $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
         ~{true='--by_st' false='' by_st} ~{true='--no_all' false='' no_all} ~{true='--combine_complex' false='' combine_complex} ~{true='--use_secondary_mlst' false='' use_secondary_mlst} \

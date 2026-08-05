@@ -56,7 +56,6 @@ include { CREATE_INPUT_CHANNELS       } from '../subworkflows/local/create_input
 // MODULE: Installed directly from nf-core/modules
 //
 include { FASTQC                      } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions/main'
 
 /*
@@ -114,9 +113,6 @@ def get_taxa_and_project_ID(input_ch){
     RUN MAIN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-// Info required for completion email and summary
-//def multiqc_report = []
 
 workflow PHYLOPHOENIX {
     take:
@@ -521,7 +517,7 @@ workflow PHYLOPHOENIX {
 
 workflow.onComplete {
     if (params.email || params.email_on_fail) {
-        NfcoreTemplate.email(workflow, params, summary_params, projectDir, log, multiqc_report)
+        NfcoreTemplate.email(workflow, params, summary_params, projectDir, log)
     }
     NfcoreTemplate.summary(workflow, params, log)
     if (params.hook_url) {
