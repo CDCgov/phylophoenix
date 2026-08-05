@@ -30,6 +30,7 @@ task phylophoenix {
     # Loop over every tarball in the array
     for tarball in ~{sep=' ' current_full_results}; do
       samplename=$(basename "${tarball}" .tar.gz)
+      samplename="${samplename%_updated}" #remove the "_updated" suffix if present
       # Untar data to update
       mkdir -p "./full_results"
       tar -xzf "${tarball}" -C "./full_results"
@@ -41,9 +42,7 @@ task phylophoenix {
     #set input variable
     input_file="--input ../samples_directory.csv"
     echo "full results directory:"
-    ls ./full_results
     echo "full results folders directories:"
-    ls ./full_results/*
     echo "full results phx_output folders directories:"
     ls ./full_results/*/phx_output
     more samples_directory.csv
