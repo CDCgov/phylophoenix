@@ -40,12 +40,16 @@ task phylophoenix {
 
     #set input variable
     input_file="--input ../samples_directory.csv"
+    echo "full results directory:"
     ls ./full_results
+    echo "full results folders directories:"
     ls ./full_results/*
+    echo "full results phx_output folders directories:"
     ls ./full_results/*/phx_output
     more samples_directory.csv
 
     #checking variables
+    echo "I'm here:"
     ls
     echo "Running phylophoenix with the following parameters:"
     echo "version: \$version"
