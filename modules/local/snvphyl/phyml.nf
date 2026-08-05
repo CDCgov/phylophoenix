@@ -2,14 +2,14 @@
 process PHYML {
     tag "${meta.seq_type}"
     label 'process_medium'
-    
+
     //container = "staphb/phyml@sha256:d5f8b157c9aa86128998849eae2c985b678f45791e234cbb159093f728a8de20" //3.3.20250515
     // container "https://depot.galaxyproject.org/singularity/phyml:3.3.20211231--hee9e358_0"
     // container = "https://depot.galaxyproject.org/singularity/phyml%3A3.3.20220408--h37cc20f_1"
     //Note: The upstream PhyML container causes an "Illegal instruction" error due to environment incompatibilities at runtime environment. 
     // The pipeline therefore uses a pre-built phyml.sif that has been validated across our supported systems.
     // container = "${launchDir}/container/phyml_3.3.20220408--h9bc3f66_3.sif" //generated local sif
-    container "quay.io/aginni/phyml@sha256:ea968f866c4fb685ae0c670e5c87f39f0ac2eb2128326cf0b324105c770dd0cd:3.3.20250515_4"
+    container "quay.io/aginni/phyml@sha256:ea968f866c4fb685ae0c670e5c87f39f0ac2eb2128326cf0b324105c770dd0cd"
 
     input:
     tuple val(meta), path(snvAlignment_phy)

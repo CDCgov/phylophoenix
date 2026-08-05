@@ -32,8 +32,10 @@ task phylophoenix {
       samplename=$(basename "${tarball}" .tar.gz)
       # Untar data to update
       mkdir -p "./full_${samplename}_results"
+      ls ./full_${samplename}_results
+      ls ./full_${samplename}_results/*
       tar -xzf "${tarball}" -C "./full_${samplename}_results"
-      project_directory="/mnt/disks/cromwell_root/${samplename}/phx_output/${samplename}"
+      project_directory="/mnt/disks/cromwell_root/full_${samplename}_results/${samplename}/phx_output/${samplename}"
       # Append this sample's line to the shared samples_directory.csv
       echo "${samplename},${project_directory}" >> samples_directory.csv
     done
