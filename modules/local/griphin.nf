@@ -1,6 +1,6 @@
 process GRIPHIN {
     // base_v2.2.0 - MUST manually change below (line 36)!!!
-    container 'quay.io/jvhagey/phoenix@sha256:ba44273acc600b36348b96e76f71fbbdb9557bb12ce9b8b37787c3ef2b7d622f'
+    container 'quay.io/jvhagey/phoenix@sha256:3a6b2b34adb0983c4a022412969b497b660d3bad1123135189e8c831f172bce7'
 
     input:
     path(db)
@@ -53,8 +53,8 @@ process GRIPHIN {
     //def samplesheet_command = (centar_detected && original_samplesheet) ? "--samplesheet ${original_samplesheet}" : ""
     def filter = filter_var ? "--filter_samples" : ""
     def output_prefix = ((dont_publish == true) || (params.mode_upper == "CENTAR" && params.indir == null)) ? "${outdir}_GRiPHin" : "${outdir}_GRiPHin_Summary" 
-    def container_version = "base_v2.2.0"
-    def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
+    def container_version = params.phoenix_container_version
+    def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     def prefix = task.ext.prefix ?: "GRiPHin"
     def stage_files = [
         metas.collect { "mkdir -p ${prefix}/${it.id}" },
@@ -82,6 +82,7 @@ process GRIPHIN {
         python: \$(python --version | sed 's/Python //g')
         griphin.py: "\$(${ica}GRiPHin.py --version | sed 's/^GRiPHin.py: //')"
         bldb_creation_date: \$(echo ${bldb} | sed 's/[^0-9]//g')
+        phoenix_base_version: ${container_version}
         phoenix_base_container: ${container}
     END_VERSIONS
     """

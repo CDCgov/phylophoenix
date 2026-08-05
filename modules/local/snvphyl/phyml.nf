@@ -9,7 +9,7 @@ process PHYML {
     //Note: The upstream PhyML container causes an "Illegal instruction" error due to environment incompatibilities at runtime environment. 
     // The pipeline therefore uses a pre-built phyml.sif that has been validated across our supported systems.
     // container = "${launchDir}/container/phyml_3.3.20220408--h9bc3f66_3.sif" //generated local sif
-    container "quay.io/aginni/phyml:3.3.20250515_4"
+    container "quay.io/aginni/phyml@sha256:ea968f866c4fb685ae0c670e5c87f39f0ac2eb2128326cf0b324105c770dd0cd:3.3.20250515_4"
 
     input:
     tuple val(meta), path(snvAlignment_phy)
@@ -21,7 +21,7 @@ process PHYML {
 
     script:
     // def container = task.container.toString() - "staphb/phyml@"
-    def container = task.container.toString()
+    def container = task.container.toString() - "quay.io/aginni/phyml@"
     """
     phyml -i ${snvAlignment_phy} --datatype nt --model GTR -v 0.0 -s BEST --ts/tv e --nclasses 4 --alpha e --bootstrap -4 --quiet
     mv ${meta.seq_type}_snvAlignment.phy_phyml_stats.txt ${meta.seq_type}_TreeStats_SNVPhyl.txt

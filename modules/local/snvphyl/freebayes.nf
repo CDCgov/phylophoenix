@@ -17,7 +17,17 @@ process FREEBAYES {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     def container = task.container.toString() - "staphb/freebayes@"
+    //set up for terra
+    if (params.terra==false) {
+        terra = ""
+        terra_exit = ""
+    } else (params.terra==true) {
+        terra = "PATH=/opt/conda/envs/freebayes/bin:\$PATH"
+        terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/freebayes/bin:||')" """
+    }
     """
+    #adding python path for running freebayes on terra
+    $terra
 
     freebayes --bam ${sorted_bams} --ploidy 1 --fasta-reference ${ref_genome} --vcf ${prefix}_freebayes.vcf
 
@@ -26,5 +36,8 @@ process FREEBAYES {
         freebayes: \$(echo \$(freebayes --version 2>&1) | sed 's/version:\s*v//g' )
         freebayes_container: ${container}
     END_VERSIONS
+
+    #revert python path back to main envs for running on terra
+    $terra_exit
     """
 }

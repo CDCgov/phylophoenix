@@ -13,7 +13,6 @@ include { INDEXING                     } from '../../modules/local/snvphyl/index
 include { FIND_REPEATS                 } from '../../modules/local/snvphyl/find_repeats'
 include { SMALT_MAP                    } from '../../modules/local/snvphyl/smalt_map'
 include { SORT_INDEX_BAMS              } from '../../modules/local/snvphyl/sort_index_bams'
-include { GENERATE_LINE_1              } from '../../modules/local/snvphyl/generate_line_1'
 include { VERIFYING_MAP_Q              } from '../../modules/local/snvphyl/verifying_map_q'
 include { FREEBAYES                    } from '../../modules/local/snvphyl/freebayes'
 include { FILTER_FREEBAYES             } from '../../modules/local/snvphyl/filter_freebayes'
@@ -24,7 +23,6 @@ include { BGZIP_MPILEUP_VCF            } from '../../modules/local/snvphyl/bgzip
 include { BCFTOOLS_CALL                } from '../../modules/local/snvphyl/bcftools_call'
 include { CONSOLIDATE_BCFS             } from '../../modules/local/snvphyl/consolidate_bcfs'
 include { CONSOLIDATE_FILTERED_DENSITY } from '../../modules/local/snvphyl/consolidate_filtered_density'
-include { GENERATE_LINE_2              } from '../../modules/local/snvphyl/generate_line_2'
 include { FILTER_STATS                 } from '../../modules/local/snvphyl/filter_stats'
 include { VCF2SNV_ALIGNMENT            } from '../../modules/local/snvphyl/vcf2snv_alignment'
 include { PHYML                        } from '../../modules/local/snvphyl/phyml'
@@ -152,21 +150,6 @@ workflow SNVPHYL {
             def sorted_bams_files = sorted_bams.collect { it[1] }  // Collect all BAM files for this `seq_type`
             // Format as required: [ [meta], sorted_bams_file1, sorted_bams_file2, ... ]
             [meta] + [sorted_bams_files]}
-
-        /*/5. Generating mapping_quality.txt file
-        GENERATE_LINE_1 (
-            sort_indexed_bams_ch
-        )
-        ch_versions = ch_versions.mix(GENERATE_LINE_1.out.versions)
-
-        // Combine sorted bams and bam_lines by ST
-        verifying_map_q_ch = sort_indexed_bams_ch.join(GENERATE_LINE_1.out.bam_lines_file, by: [0])
-
-        VERIFYING_MAP_Q (
-            verifying_map_q_ch.map{ meta, sorted_bams, bam_lines_file -> [ meta, sorted_bams ]},
-            verifying_map_q_ch.map{ meta, sorted_bams, bam_lines_file -> bam_lines_file}.splitText()
-        )
-        ch_versions = ch_versions.mix(VERIFYING_MAP_Q.out.versions)*/
 
         // Convert BAM files to command-line argument string: "--bam bam1=./file1_sorted.bam --bam bam2=./file2_sorted.bam ..."
         // Added .sort to ensure bam files are always processed in same order, otherwise we get variations in mappingQuality.txt outputs
@@ -297,13 +280,6 @@ workflow SNVPHYL {
         }.collectFile() { seq_type, consolidation_line ->
             ["${seq_type}_consolidation_line.txt", consolidation_line]
         }.set { consolidation_line_files }
-
-        /*/ Making string that looks like... this is needed for the next process
-        //--consolidate_vcf 2021JQ-00457-WAPHL-M5130-211029=2021JQ-00457-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00459-WAPHL-M5130-211029=2021JQ-00459-WAPHL-M5130-211029_consolidated.bcf --consolidate_vcf 2021JQ-00460-WAPHL-M5130-211029=2021JQ-00460-WAPHL-M5130-211029_consolidated.bcf
-        GENERATE_LINE_2 (
-            consolidated_bcfs_ch
-        )
-        ch_versions = ch_versions.mix(GENERATE_LINE_2.out.versions)*/
 
         // collect all sorted bcf index files and separate them into their own channel by ST
         consolidate_bcf_indexes_ch = CONSOLIDATE_BCFS.out.consolidated_bcf_index.map{ meta, consolidated_bcf_indexes -> [meta.seq_type, [meta, consolidated_bcf_indexes]] }  // Extract `seq_type` as key

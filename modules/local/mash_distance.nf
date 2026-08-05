@@ -17,7 +17,18 @@ process MASH_DIST {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     def container = task.container.toString() - "staphb/mash@"
+    //set up for terra
+    if (params.terra==false) {
+        terra = ""
+        terra_exit = ""
+    } else (params.terra==true) {
+        terra = "PATH=/opt/conda/envs/mash/bin:\$PATH"
+        terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/mash/bin:||')" """
+    }
     """
+    #adding python path for running mash on terra
+    $terra
+
     mash \\
         dist \\
         -p $task.cpus \\
@@ -30,5 +41,8 @@ process MASH_DIST {
         mash: \$(mash --version 2>&1)
         mash_container: ${container}
     END_VERSIONS
+
+    #revert python path back to main envs for running on terra
+    $terra_exit
     """
 }

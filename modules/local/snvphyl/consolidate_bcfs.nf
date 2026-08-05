@@ -2,7 +2,7 @@
 process CONSOLIDATE_BCFS {
     tag "${meta.id}_${meta.seq_type}"
     label 'process_medium'
-    container "staphb/snvphyl-tools:1.8.2"
+    container "staphb/snvphyl-tools@sha256:a81b1df43b98dc4ad18f4bfe9b36f83a26f27cc3560c1e1a1004cc20bb3d0c68"
 
     input:
     tuple val(meta), path(mpileup_bcf), path(freebayes_filtered_bcf), path(freebayes_filtered_csi)
@@ -17,15 +17,30 @@ process CONSOLIDATE_BCFS {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def container = task.container.toString() - "staphb/snvphyl-tools:"
+    def container = task.container.toString() - "staphb/snvphyl-tools@"
+    //set up for terra
+    if (params.terra==false) {
+        terra = ""
+        terra_exit = ""
+    } else (params.terra==true) {
+        terra = "PATH=/opt/conda/envs/snvphyl-tools/bin:\$PATH"
+        terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/snvphyl-tools/bin:||')" """
+    }
     """
+    #adding python path for running snvphyl-tools on terra
+    $terra
+
     consolidate_vcfs.pl --coverage-cutoff 10 --min-mean-mapping 30 --snv-abundance-ratio 0.75 --vcfsplit ${freebayes_filtered_bcf} --mpileup ${mpileup_bcf} --filtered-density-out ${prefix}_filtered_density.txt --window-size ${window_size} --density-threshold ${params.density_threshold} -o ${prefix}_consolidated.bcf > ${prefix}_consolidated.vcf
     bcftools index -f ${prefix}_consolidated.bcf
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        snvphyl-tools: ${container}
+        snvphyl-tools_version: \$(sed -n '3{s/^## //p}' ../../snvphyl-tools-*/CHANGELOG.md)
+        snvphyl-tools_container: ${container}
         bcftools: \$( bcftools --version |& sed '1!d; s/^.*bcftools //' )
     END_VERSIONS
+
+    #revert python path back to main envs for running on terra
+    $terra_exit
     """
 }

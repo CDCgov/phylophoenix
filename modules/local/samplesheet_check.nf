@@ -2,8 +2,7 @@ process SAMPLESHEET_CHECK {
     tag "$samplesheet"
     label 'process_low'
     stageInMode 'copy'
-    // base_v2.2.0 - MUST manually change below (line 24)!!!
-    container 'quay.io/jvhagey/phoenix@sha256:ba44273acc600b36348b96e76f71fbbdb9557bb12ce9b8b37787c3ef2b7d622f'
+    container 'quay.io/jvhagey/phoenix@sha256:3a6b2b34adb0983c4a022412969b497b660d3bad1123135189e8c831f172bce7'
 
     // Imported from PHX v2.3.2 release, July 2026.
 
@@ -24,13 +23,13 @@ process SAMPLESHEET_CHECK {
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
     def ica = params.ica ? "python ${params.bin_dir}" : ""
     // define variables
-    def container_version = "base_v2.2.0"
     def reads_check = reads_mode ? "true" : "false"
     def scaffolds_check = scaffolds_mode ? "true" : "false"
     def directory_check = directory_mode ? "true" : "false"
     def griphins_check = griphins_mode ? "true" : "false"
     def sheet_by_dir = (params.mode_upper == "UPDATE_PHOENIX" || params.mode_upper == "CENTAR") ? "--sheet_by_dir" : ""
     def updater = (params.mode_upper == "UPDATE_PHOENIX" || params.mode_upper == "CENTAR") ? "--updater" : ""
+    def container_version = params.phoenix_container_version
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
     if [ ${reads_check} = "true" ]; then
@@ -58,7 +57,7 @@ process SAMPLESHEET_CHECK {
     "${task.process}":
         python: \$(python --version | sed 's/Python //g')
         \${script_version}
-        phoenix_base_container_tag: ${container_version}
+        phoenix_base_version: ${container_version}
         phoenix_base_container: ${container}
     END_VERSIONS
     """
