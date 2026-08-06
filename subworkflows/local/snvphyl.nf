@@ -27,15 +27,7 @@ include { FILTER_STATS                 } from '../../modules/local/snvphyl/filte
 include { VCF2SNV_ALIGNMENT            } from '../../modules/local/snvphyl/vcf2snv_alignment'
 include { PHYML                        } from '../../modules/local/snvphyl/phyml'
 include { MAKE_SNV                     } from '../../modules/local/snvphyl/make_snv'
-
-/*
-========================================================================================
-    IMPORT NF-CORE SUBWORKFLOWS
-========================================================================================
-*/
-
-//include { INPUT_CHECK                  } from './input_check'
-include { FASTQC                       } from '../../modules/nf-core/fastqc/main'
+include { FASTQC                       } from '../../modules/local/fastqc'
 
 /*
 ========================================================================================

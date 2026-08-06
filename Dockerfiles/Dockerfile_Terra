@@ -41,6 +41,7 @@ RUN micromamba create -n phylophoenix -c defaults -c bioconda -c conda-forge \
     conda-forge::openjdk \
     bioconda::bcftools=1.22 \
     bioconda::htslib=1.23 \
+    bioconda::fastqc=0.12.1 \
     bioconda::nextflow=25.04.2 && \
     micromamba clean -a -y
     #&& echo "source activate phylophoenix" >> ~/.bashrc
