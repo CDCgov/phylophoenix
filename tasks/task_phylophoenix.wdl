@@ -95,7 +95,7 @@ task phylophoenix {
     File versions_file = "~{output_folder_name}/pipeline_info/software_versions.yml"
   }
   runtime {
-    docker: "quay.io/jvhagey/phylophoenix@sha256:dab69636041f6f821108249e7c5c4471e6755a04e99e4718de663305d5fc7bab"
+    docker: "quay.io/jvhagey/phylophoenix@sha256:2e8f903331b039ae1f231c1cea935cb968a98b5d8daf3730e37c55e0dc908c67"
     memory: "~{memory} GB"
     cpu: cpu
     disks:  "local-disk ~{disk_size} SSD"

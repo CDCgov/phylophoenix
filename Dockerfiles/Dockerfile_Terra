@@ -23,6 +23,7 @@ ENV CONDA_SOLVER=libmamba
 RUN micromamba create -n phylophoenix -c defaults -c bioconda -c conda-forge \
     conda-forge::python  \
     conda-forge::biopython \
+    conda-forge::xz \
     anaconda::pandas \
     anaconda::openpyxl \
     conda-forge::rsync \
