@@ -22,7 +22,18 @@ process PHYML {
     script:
     // def container = task.container.toString() - "staphb/phyml@"
     def container = task.container.toString() - "quay.io/aginni/phyml@"
+    //set up for terra
+    if (params.terra==false) {
+        terra = ""
+        terra_exit = ""
+    } else {
+        terra = "PATH=/opt/conda/envs/phyml/bin:\$PATH"
+        terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/phyml/bin:||')" """
+    }
     """
+    # adding python path for running phyml on terra
+    $terra
+
     phyml -i ${snvAlignment_phy} --datatype nt --model GTR -v 0.0 -s BEST --ts/tv e --nclasses 4 --alpha e --bootstrap -4 --quiet
     mv ${meta.seq_type}_snvAlignment.phy_phyml_stats.txt ${meta.seq_type}_TreeStats_SNVPhyl.txt
     mv ${meta.seq_type}_snvAlignment.phy_phyml_tree.txt pre_${meta.seq_type}_SNVPhyl.newick
@@ -32,5 +43,8 @@ process PHYML {
         phyml: \$( phyml --version | grep -oP '[0-9]+\\.[0-9]+\\.[0-9]+' )
         phyml_container: ${container}
     END_VERSIONS
+
+    # revert python path back to main envs for running on terra
+    $terra_exit
     """
 }
