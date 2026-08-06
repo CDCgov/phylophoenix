@@ -41,29 +41,11 @@ task phylophoenix {
 
     #set input variable
     input_file="--input ../samples_directory.csv"
-    echo "full results directory:"
-    echo "full results folders directories:"
-    echo "full results phx_output folders directories:"
-    ls ./full_results/*/phx_output
-    more samples_directory.csv
 
-    #checking variables
-    echo "I'm here:"
-    ls
-    echo "Running phylophoenix with the following parameters:"
-    echo "version: \$version"
-    echo "window_size: ${window_size}"
-    echo "no_all: ${no_all}"
-    echo "by_st: ${by_st}"
-    echo "use_secondary_mlst: ${use_secondary_mlst}"
-    echo "combine_complex: ${combine_complex}"
-
-    echo "inside phylophoenix_run directory"
     mkdir phylophx_run
     cd phylophx_run
-    ls
 
-    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{output_folder_name} --terra true $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
+    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{output_folder_name} --terra $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
         ~{true='--by_st' false='' by_st} ~{true='--no_all' false='' no_all} ~{true='--combine_complex' false='' combine_complex} ~{true='--use_secondary_mlst' false='' use_secondary_mlst} \
         --window_size ~{window_size} --tmpdir $TMPDIR --max_cpus ~{cpu} --max_memory '~{memory}.GB' ; then
       # Everything finished, pack up the results and clean up

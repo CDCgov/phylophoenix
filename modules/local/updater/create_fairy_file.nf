@@ -14,7 +14,7 @@ process CREATE_FAIRY_FILE {
     script: 
     // define variables
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def container_version = "base_v2.2.0"
+    def container_version = params.phoenix_container_version
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     def parent_folder_name = parent_folder ? "${indir}/${prefix}" : "${prefix}"
     """

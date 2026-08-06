@@ -18,7 +18,7 @@ process FIND_REPEATS {
     if (params.terra==false) {
         terra = ""
         terra_exit = ""
-    } else (params.terra==true) {
+    } else {
         terra = "PATH=/opt/conda/envs/snvphyl-tools/bin:\$PATH"
         terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/snvphyl-tools/bin:||')" """
     }

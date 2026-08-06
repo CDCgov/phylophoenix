@@ -43,6 +43,9 @@ workflow PHYLOPHOENIX_WF {
         exit 1, "you passed --use_secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
     }
 
+    // check terra param make suer its a boolean, if not exit with error
+    if (!(params.terra instanceof Boolean)) {  exit 1, "ERROR: params.terra must be true or false, got: ${params.terra}"}
+
     // // Check input path parameters to see if they exist
     // if (params.input != null ) {  // if a samplesheet is passed
     //     // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 
@@ -75,7 +78,7 @@ workflow PHYLOPHOENIX_WF {
         if (params.indir != null ) { //if samplesheet is passed and an input directory exit
             exit 1, 'You need EITHER an input samplesheet or a directory! Just pick one.' 
         } else { // if only samplesheet is passed check to make sure input is an actual file
-            def checkPathParamList = [ params.input, params.multiqc_config ]
+            def checkPathParamList = [ params.input ]
             for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
             ch_input_indir = null //keep input directory null if not passed
             // get full path for input and make channel
@@ -84,7 +87,7 @@ workflow PHYLOPHOENIX_WF {
     } else {
 /*        if (params.indir != null ) { // if no samplesheet is passed, but an input directory is given
             ch_input = null //keep samplesheet input null if not passed
-            def checkPathParamList = [ params.indir, params.multiqc_config ]
+            def checkPathParamList = [ params.indir ]
             for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
             ch_input_indir = Channel.fromPath(params.indir, relative: true, type: 'dir')
         } else { // if no samplesheet is passed and no input directory is given
@@ -93,7 +96,7 @@ workflow PHYLOPHOENIX_WF {
     }*/
         if (params.indir != null ) {
 
-            def checkPathParamList = [ params.indir, params.multiqc_config ]
+            def checkPathParamList = [ params.indir ]
             for (param in checkPathParamList) {
                 if (param) { file(param, checkIfExists: true) }
             }

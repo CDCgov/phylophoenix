@@ -10,9 +10,6 @@ process MASH_DIST {
     tuple val(meta), path("*.txt"), emit: dist
     path "versions.yml"           , emit: versions
 
-    when:
-    task.ext.when == null || task.ext.when
-
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
@@ -21,7 +18,7 @@ process MASH_DIST {
     if (params.terra==false) {
         terra = ""
         terra_exit = ""
-    } else (params.terra==true) {
+    } else {
         terra = "PATH=/opt/conda/envs/mash/bin:\$PATH"
         terra_exit = """PATH="\$(printf '%s\\n' "\$PATH" | sed 's|/opt/conda/envs/mash/bin:||')" """
     }

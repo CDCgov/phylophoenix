@@ -19,7 +19,7 @@ process COLLECT_PROJECT_FILES {
 
     script: 
     // define variables
-    def container_version = "base_v2.2.0"
+    def container_version = params.phoenix_container_version
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     def parentPath = meta.project_id.tokenize('/').last()
     def project_dir = full_project_dir ? "${parentPath}" : "${meta.project_id}"

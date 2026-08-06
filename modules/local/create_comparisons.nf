@@ -16,7 +16,7 @@ process GET_COMPARISONS {
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
     def ica = params.ica ? "python ${params.bin_dir}" : ""
     def combine_complexes_arg = combine_complexes ? "--combine_complex" : ""
-    def container_version = "base_v2.2.0"
+    def container_version = params.phoenix_container_version
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
     ${ica}create_comparisions.py -s ${griphin_samplesheet} -g ${griphin} ${combine_complexes_arg}
