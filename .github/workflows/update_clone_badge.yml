@@ -3,11 +3,11 @@ name: Update Clone Badge
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs at midnight every day
+  workflow_dispatch:  # allows manual triggering from the Actions tab
 
 jobs:
   update-badge:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Run only on dev branch
 
     steps:
       - name: Checkout repository
@@ -17,13 +17,15 @@ jobs:
           ref: dev  # Specify the branch to checkout
       
       - name: Get clone count for today
-        
         id: get_clone_count
         run: |
-          # Fetch clone count from GitHub API for today
-          CLONE_COUNT=$(curl -s -H "Authorization: Bearer ${{ secrets.GH_ACTION }}" \
-              "https://api.github.com/repos/CDCgov/phylophoenix/traffic/clones" | jq -r --arg target_day "$(date -d yesterday +%Y-%m-%d)" '.clones[] | select(.timestamp | startswith($target_day))' | jq -r '.count')
-          echo "CLONE_COUNT=$CLONE_COUNT" >> $GITHUB_ENV
+          RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GH_ACTION }}" \
+              "https://api.github.com/repos/CDCgov/phylophoenix/traffic/clones")
+          echo "API response: $RESPONSE"
+          CLONE_COUNT=$(echo "$RESPONSE" | jq -r --arg target_day "$(date -d yesterday +%Y-%m-%d)" '.clones[] | select(.timestamp | startswith($target_day))' | jq -r '.count')
+          echo "Raw CLONE_COUNT: '$CLONE_COUNT'"
+          ADJUSTED_COUNT=$((${CLONE_COUNT:-0} - 1))
+          echo "CLONE_COUNT=$ADJUSTED_COUNT" >> $GITHUB_ENV
 
       - name: Extract previous clone count from README
         id: extract_previous_count
@@ -33,7 +35,6 @@ jobs:
           echo "PREVIOUS_COUNT=$PREVIOUS_COUNT" >> $GITHUB_ENV
 
       - name: Calculate new total clone count
-        if: ${{ env.PREVIOUS_COUNT != env.NEW_TOTAL }}
         id: calculate_new_total
         run: |
           # Calculate new total clone count by adding today's count to previous count
