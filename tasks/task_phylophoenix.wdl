@@ -55,7 +55,6 @@ task phylophoenix {
       echo $PWD
       tar -cf - ~{output_folder_name}/ | gzip -n --best > ~{output_folder_name}.tar.gz
       ls
-      ls 
     else
       # Run failed
       tar -cf - work/ | gzip -n --best > work.tar.gz
@@ -95,7 +94,7 @@ task phylophoenix {
     Array[File]? st_snv_table_files     = glob("phylophx_run/~{output_folder_name}/*_ST*/*_snvTable.tsv")
     Array[File]? st_snv_matrix_files    = glob("phylophx_run/~{output_folder_name}/*_ST*/*_snvMatrix.tsv")
     #full results
-    File versions_file = "~{output_folder_name}/pipeline_info/software_versions.yml"
+    File versions_file = "phylophx_run/~{output_folder_name}/pipeline_info/software_versions.yml"
   }
   runtime {
     docker: "quay.io/jvhagey/phylophoenix@sha256:42f95d22819ebaf3668139fc23fcd50f65a4db5198d73fe6049c55de1e80e541"
