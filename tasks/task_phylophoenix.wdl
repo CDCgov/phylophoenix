@@ -77,7 +77,7 @@ task phylophoenix {
     String phylophoenix_version        = read_string("VERSION")
     String phylophoenix_docker         = "quay.io/jvhagey/phylophoenix:1.1.0"
     String analysis_date               = read_string("DATE")
-    File full_phylophx_results         = "~{output_folder_name}.tar.gz"
+    File full_phylophx_results         = "phylophx_run/~{output_folder_name}.tar.gz"
     File snvphyl_griphin_excel_summary = "phylophx_run/~{output_folder_name}/SNVPhyl_GRiPHin_Summary.xlsx"
     # "All_<Taxa>_Isolates" directories (combined taxa/complex-level runs)
     Array[File] all_isolates_centroid_info_files = glob("phylophx_run/~{output_folder_name}/All_*_Isolates/*_centroid_info.txt")
