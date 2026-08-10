@@ -32,6 +32,7 @@ RUN micromamba create -n phylophoenix -c defaults -c bioconda -c conda-forge \
     conda-forge::procps-ng \
     conda-forge::coreutils \
     conda-forge::gsutil \
+    conda-forge::pyyaml \
     conda-forge::pigz \
     anaconda::git \
     anaconda::graphviz \
