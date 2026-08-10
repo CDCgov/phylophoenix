@@ -3,6 +3,7 @@ name: Update Clone Badge
 on:
   schedule:
     - cron: '0 0 * * *'  # Runs at midnight every day
+  workflow_dispatch:  # allows manual triggering from the Actions tab
 
 jobs:
   update-badge:
