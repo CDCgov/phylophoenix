@@ -52,7 +52,10 @@ task phylophoenix {
       #tar -cf - work/ | gzip -n --best > work.tar.gz
       rm -rf .nextflow/ work/
       ls
+      echo $PWD
       tar -cf - ~{output_folder_name}/ | gzip -n --best > ~{output_folder_name}.tar.gz
+      ls
+      ls 
     else
       # Run failed
       tar -cf - work/ | gzip -n --best > work.tar.gz
@@ -89,8 +92,8 @@ task phylophoenix {
     Array[File]? st_snv_alignment_files = glob("phylophx_run/~{output_folder_name}/*_ST*/*_snvAlignment.phy")
     Array[File]? st_newick_files        = glob("phylophx_run/~{output_folder_name}/*_ST*/*_SNVPhyl.newick")
     Array[File]? st_vcf2core_files      = glob("phylophx_run/~{output_folder_name}/*_ST*/*_vcf2core.tsv")
-    Array[File]? st_snv_table_files     = glob("~{output_folder_name}/*_ST*/*_snvTable.tsv")
-    Array[File]? st_snv_matrix_files    = glob("~{output_folder_name}/*_ST*/*_snvMatrix.tsv")
+    Array[File]? st_snv_table_files     = glob("phylophx_run/~{output_folder_name}/*_ST*/*_snvTable.tsv")
+    Array[File]? st_snv_matrix_files    = glob("phylophx_run/~{output_folder_name}/*_ST*/*_snvMatrix.tsv")
     #full results
     File versions_file = "~{output_folder_name}/pipeline_info/software_versions.yml"
   }

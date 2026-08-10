@@ -1,7 +1,7 @@
-FROM mambaorg/micromamba:2.0.5
+FROM mambaorg/micromamba:2.9.0
 
 # metadata
-LABEL base.image="mambaorg/micromamba:2.0.5"
+LABEL base.image="mambaorg/micromamba:2.9.0"
 LABEL dockerfile.version="2"
 LABEL software="phylophoenix"
 LABEL software.version="1.1.0"

@@ -30,8 +30,11 @@ jobs:
       - name: Extract previous clone count from README
         id: extract_previous_count
         run: |
-          # Extract previous clone count from README.md
           PREVIOUS_COUNT=$(grep -oP '(?<=Clones%3A%20)\d+' README.md)
+          if [ -z "$PREVIOUS_COUNT" ]; then
+            echo "ERROR: could not extract previous clone count from README" >&2
+            exit 1
+          fi
           echo "PREVIOUS_COUNT=$PREVIOUS_COUNT" >> $GITHUB_ENV
 
       - name: Calculate new total clone count
