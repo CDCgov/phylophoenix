@@ -45,13 +45,13 @@ task phylophoenix {
     mkdir phylophx_run
     cd phylophx_run
 
-    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.1.3 -profile terra -r $version --outdir ./~{output_folder_name} --terra $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
+    if nextflow run cdcgov/phylophoenix -plugins nf-google@1.22.2 -profile terra -r $version --outdir ./~{output_folder_name} --terra $input_file ~{if defined(blind_list) then "--blind_list " + blind_list else ""} \
         ~{true='--by_st' false='' by_st} ~{true='--no_all' false='' no_all} ~{true='--combine_complex' false='' combine_complex} ~{true='--use_secondary_mlst' false='' use_secondary_mlst} \
         --window_size ~{window_size} --tmpdir $TMPDIR --max_cpus ~{cpu} --max_memory '~{memory}.GB' ; then
       # Everything finished, pack up the results and clean up
       #tar -cf - work/ | gzip -n --best > work.tar.gz
       rm -rf .nextflow/ work/
-      cd ..
+      ls
       tar -cf - ~{output_folder_name}/ | gzip -n --best > ~{output_folder_name}.tar.gz
     else
       # Run failed
