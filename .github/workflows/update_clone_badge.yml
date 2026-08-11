@@ -25,6 +25,10 @@ jobs:
           CLONE_COUNT=$(echo "$RESPONSE" | jq -r --arg target_day "$(date -d yesterday +%Y-%m-%d)" '.clones[] | select(.timestamp | startswith($target_day))' | jq -r '.count')
           echo "Raw CLONE_COUNT: '$CLONE_COUNT'"
           ADJUSTED_COUNT=$((${CLONE_COUNT:-0} - 1))
+          # Adjust for negative clone counts so its never -1
+          if [ "$ADJUSTED_COUNT" -lt 0 ]; then
+            ADJUSTED_COUNT=0
+          fi
           echo "CLONE_COUNT=$ADJUSTED_COUNT" >> $GITHUB_ENV
 
       - name: Extract previous clone count from README
