@@ -252,9 +252,6 @@ workflow PHYLOPHOENIX {
                         return tuple ( meta, files ) } // Restructure to orginal format
             centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
 
-            //dist_ch.view()
-            //centroid_ch.view()
-
             // Take in all mash distance files then use the samplesheet to return the centroid assembly
             // Get centroid, by calculating the average mash distance
             GET_CENTROID (
@@ -352,9 +349,6 @@ workflow PHYLOPHOENIX {
                 // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
                 gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
             }
-
-            // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
-            gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
 
             // Creates samplesheets with sample,seq_type,path_to_assembly
             if (params.blind_list != null){ // if control list is passed allow it to be relative
