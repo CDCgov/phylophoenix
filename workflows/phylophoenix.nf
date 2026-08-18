@@ -264,8 +264,6 @@ workflow PHYLOPHOENIX {
                 def scaffold = list[0] // extract the file from the list
                 return [meta, scaffold]}.join(CREATE_META.out.st_snv_samplesheets, by: [0,0])
 
-            asset_prep_ch.view()
-
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             // also unzip the geoname files for cleaning metadata file. 
             ASSET_PREP (
