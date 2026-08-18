@@ -34,8 +34,6 @@ def newest_by_embedded_date = { ch ->
         }
 }
 
-
-
 workflow CREATE_INPUT_CHANNELS {
     take:
         samplesheet  // params.input

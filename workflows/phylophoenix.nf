@@ -206,7 +206,8 @@ workflow PHYLOPHOENIX {
             shigapass_var_ch,
             griphin_inputs_ch,
             phx_version_ch,
-            outdir_path
+            outdir_path,
+            by_st
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
 
@@ -244,13 +245,15 @@ workflow PHYLOPHOENIX {
 
             // Creating channel [ ST, [distance_1, distance_2] ]
             dist_ch = MASH_DIST.out.dist.map { meta, file -> [meta.seq_type, meta, file] } // Add seq_type as key
-                .groupTuple() // Group by seq_typ
+                .groupTuple() // Group by seq_type
                 .map { seq_type, old_meta, files -> 
                         def meta = [:]
                         meta.seq_type = old_meta.seq_type.unique()[0]
-                        //meta.taxa = old_meta.taxa.unique()[0]
                         return tuple ( meta, files ) } // Restructure to orginal format
             centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
+
+            //dist_ch.view()
+            //centroid_ch.view()
 
             // Take in all mash distance files then use the samplesheet to return the centroid assembly
             // Get centroid, by calculating the average mash distance
@@ -259,14 +262,17 @@ workflow PHYLOPHOENIX {
             )
             ch_versions = ch_versions.mix(GET_CENTROID.out.versions)
 
+            // Bring in centroid into channel
+            asset_prep_ch = GET_CENTROID.out.centroid_path.splitCsv( header:false, sep:',' ).map{meta, list -> 
+                def scaffold = list[0] // extract the file from the list
+                return [meta, scaffold]}.join(CREATE_META.out.st_snv_samplesheets, by: [0,0])
+
+            asset_prep_ch.view()
+
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             // also unzip the geoname files for cleaning metadata file. 
             ASSET_PREP (
-                // Bring in centroid into channel
-                GET_CENTROID.out.centroid_path.splitCsv( header:false, sep:',' ).map{meta, list -> 
-                def scaffold = list[0] // extract the file from the list
-                return [meta, scaffold]},  // get into format [[meta], scaffold]
-                geonames_ch, CREATE_META.out.st_snv_samplesheets
+                asset_prep_ch, geonames_ch
             )
             ch_versions = ch_versions.mix(ASSET_PREP.out.versions)
 
@@ -333,7 +339,22 @@ workflow PHYLOPHOENIX {
         }
 
         // If you pass --by_st then samples will be broken up by st type and SNVPhyl run on each st on its own
-        if (by_st==true) {
+        if (by_st==true ) {
+
+            def gated_directory_samplesheet_ch
+            if (params.no_all==true) {
+                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
+            } else {
+                // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
+                single_st_taxa_ch = GRIPHIN_WORKFLOW.out.single_st_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
+                // The following taxa have only one ST and will be suppressed from running by ST redundant. If empty run all samples by st
+                single_st_taxa_ch.view{ it -> println "The following taxa have only one ST and will be excluded from the by-ST run, since it would be redundant: ${it}" }
+                // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
+                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
+            }
+
+            // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
+            gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
 
             // Creates samplesheets with sample,seq_type,path_to_assembly
             if (params.blind_list != null){ // if control list is passed allow it to be relative
@@ -341,13 +362,13 @@ workflow PHYLOPHOENIX {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // get sequence types with a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst, params.combine_complex
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             } else {
                 // get sequence types without a blind list
                 GET_SEQUENCE_TYPES (
-                    GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst, params.combine_complex
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             }
@@ -367,9 +388,24 @@ workflow PHYLOPHOENIX {
                 )
             }
 
+            def filtered_st_scaffolds_ch
+            if (params.no_all==true) {
+                filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds
+            } else {
+                // Group scaffold paths under meta, combine with the list of redundant single-ST taxa, drop any samples whose seq_type is single-ST (already covered by the all-samples run), then flatten
+                // scaffolds back into the tuple: [meta, scaffold_1, scaffold_2, ...]
+                filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds.map{items ->
+                                        def meta = items[0]
+                                        def scaffolds = items[1..-1]
+                                        return [meta, scaffolds]
+                                    }
+                                    .combine(single_st_taxa_ch.map{ list -> [list] }).filter{ meta, scaffolds, single_st_list -> !single_st_list.contains(meta.seq_type) }.map{ meta, scaffolds, single_st_list -> [meta, *scaffolds] }
+            }
+
             // Run Mash on groups of samples by seq type
             MASH_DIST_BY_ST (
-                CREATE_META_BY_ST.out.st_scaffolds
+                //CREATE_META_BY_ST.out.st_scaffolds
+                filtered_st_scaffolds_ch
             )
             ch_versions = ch_versions.mix(MASH_DIST_BY_ST.out.versions)
 
@@ -398,9 +434,10 @@ workflow PHYLOPHOENIX {
 
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             ASSET_PREP_BY_ST (
-                asset_prep_ch.map{meta, centroid_path, st_snv_samplesheets -> [meta, centroid_path]}.splitCsv( header:false, sep:',' ), // Bring in centroid into channel
-                geonames_ch,
-                asset_prep_ch.map{meta, centroid_path, st_snv_samplesheets -> [meta, st_snv_samplesheets]}
+                asset_prep_ch.map { meta, centroid_path, st_snv_samplesheets -> [meta, centroid_path, st_snv_samplesheets] }
+                    .splitCsv(header: false, sep: ',', elem: 1)  // split only the centroid_path element (index 1)
+                    .map { meta, centroid_row, st_snv_samplesheets -> [meta, centroid_row, st_snv_samplesheets] },
+                    geonames_ch
             )
             ch_versions = ch_versions.mix(ASSET_PREP_BY_ST.out.versions)
 
@@ -432,8 +469,6 @@ workflow PHYLOPHOENIX {
                                 def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
                                 tuple(meta.seq_type, centroid_id)
                             }
-
-            centroid_id_by_st_ch.view()
 
             filtered_reads_by_st_ch = CREATE_META_BY_ST.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
                 .combine(centroid_id_by_st_ch, by: 0)

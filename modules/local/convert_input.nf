@@ -2,7 +2,7 @@
 process CONVERT_INPUT {
     tag "${meta.seq_type}"
     label 'process_low'
-    container 'quay.io/jvhagey/phoenix@sha256:3a6b2b34adb0983c4a022412969b497b660d3bad1123135189e8c831f172bce7'
+    container params.phoenix_base_container
 
     input:
     tuple val(meta), path(sample_sheet)

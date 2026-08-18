@@ -80,9 +80,9 @@ def filter_and_define_tree2(input_meta, snvAlignment, consolidated_bcfs, phyloge
 workflow SNVPHYL {
     take:
         //samplesheet // GRIPHIN.out.griphin_samplesheet
-        reads       // INPUT_CHECK.out.reads
-        reference   // GET_REFERENCE_SEQ.out.reference
-        window_size  // params.window_size
+        reads         // INPUT_CHECK.out.reads
+        reference     // GET_REFERENCE_SEQ.out.reference
+        window_size   // params.window_size
 
     main:
         ch_versions = Channel.empty() // Used to collect the software versions

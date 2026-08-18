@@ -21,6 +21,7 @@ workflow GRIPHIN_WORKFLOW {
         griphin_inputs         // channel: all input files for GRiPHin
         orginal_phx_version    // string: original PHoenix version used to generate the input files
         outdir
+        by_st_param            //params.by_st
 
 
     main:
@@ -77,12 +78,9 @@ workflow GRIPHIN_WORKFLOW {
         }
         directory_samplesheet = GRIPHIN.out.converted_samplesheet
 
-        GRIPHIN.out.griphin_tsv_report.view { it -> println "GRiPHin TSV report: ${it}" }
-        GRIPHIN.out.converted_samplesheet.view { it -> println "Directory samplesheet: ${it}" }
-
         // Identify samples failed PHX specs
         REMOVE_FAILURES(
-            GRIPHIN.out.griphin_tsv_report, directory_samplesheet
+            GRIPHIN.out.griphin_tsv_report, directory_samplesheet, by_st_param
         )
         ch_versions = ch_versions.mix(REMOVE_FAILURES.out.versions)
 
@@ -100,5 +98,6 @@ workflow GRIPHIN_WORKFLOW {
         griphin_report        = GRIPHIN.out.griphin_excel_report      // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.xlsx') ]
         griphin_tsv_report    = GRIPHIN.out.griphin_tsv_report  // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.tsv') ]
         directory_samplesheet = final_directory_samplesheet     // channel: [ val(meta), path('Directory_samplesheet.csv') ]
+        single_st_taxa_file   = REMOVE_FAILURES.out.single_st_taxa_file
         versions              = ch_versions                     // channel: [ versions.yml ]
 }

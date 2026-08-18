@@ -2,7 +2,7 @@ process SAMPLESHEET_CHECK {
     tag "$samplesheet"
     label 'process_low'
     stageInMode 'copy'
-    container 'quay.io/jvhagey/phoenix@sha256:3a6b2b34adb0983c4a022412969b497b660d3bad1123135189e8c831f172bce7'
+    container params.phoenix_base_container
 
     // Imported from PHX v2.3.2 release, July 2026.
 
