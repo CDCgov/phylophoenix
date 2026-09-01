@@ -343,7 +343,7 @@ workflow PHYLOPHOENIX {
                 // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
                 single_st_taxa_ch = GRIPHIN_WORKFLOW.out.single_st_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
                 // The following taxa have only one ST and will be suppressed from running by ST redundant. If empty run all samples by st
-                single_st_taxa_ch.view{ it -> println "The following taxa have only one ST and will be excluded from the by-ST run, since it would be redundant: ${it}" }
+                single_st_taxa_ch.view{ it -> it.isEmpty() ? null : "The following taxa have only one ST and will be excluded from the by-ST run, since it would be redundant: ${it}" }
                 // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
                 gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
             }
@@ -494,9 +494,9 @@ workflow PHYLOPHOENIX {
 
         if (by_st==true) {
             if (params.no_all==false) {
-                // collect files to add to griphin summary
-                snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect().combine(RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect())
-                vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().combine(SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect())
+                // collect files to add to griphin summary, flattening all + by-st results into one list
+                snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect().combine(RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect().ifEmpty([]))//.map{ all_matrices, by_st_matrices -> (all_matrices + by_st_matrices) }
+                vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().combine(SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().ifEmpty([]))//.map { all_vcf2core, by_st_vcf2core -> (all_vcf2core + by_st_vcf2core) }
             } else {
                 // collect files to add to griphin summary
                 snvMatrix_ch = RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect()
@@ -516,7 +516,6 @@ workflow PHYLOPHOENIX {
                 snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.window_size, params.combine_complex
             )
             ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
-
         } else {
             // combine without blinding
             COMBINE_GRIPHIN_SNVPHYL (
