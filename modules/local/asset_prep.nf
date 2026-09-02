@@ -17,15 +17,21 @@ process ASSET_PREP {
     script:
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
     def ica = params.ica ? "python ${params.bin_dir}" : ""
-    refname = zipped_fasta.toString() - '.filtered.scaffolds.fa.gz'
+    def refname = zipped_fasta.toString() - '.filtered.scaffolds.fa.gz' - '.fna.gz'
     def container_version = params.phoenix_container_version
     def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
     if [[ ${zipped_fasta} == *.gz ]]
     then
         gunzip --force ${zipped_fasta}
+        # make sure to get the correct name of the unzipped file
+        unzipped_fasta="\$(basename ${zipped_fasta} .gz)"
     else
-        :
+        unzipped_fasta="${zipped_fasta}"
+    fi
+
+    if [[ "\$unzipped_fasta" != *.filtered.scaffolds.fa ]]; then
+        mv "\$unzipped_fasta" "${refname}.filtered.scaffolds.fa"
     fi
 
     for file in ${geo_data}; do

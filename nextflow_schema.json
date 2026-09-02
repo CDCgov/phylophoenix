@@ -84,11 +84,11 @@
         "snvphyl_options":{
             "title": "Options for SNVPhyl Subworkflow",
             "properties": {
-                "reference_genome": {
+                "ref_genome": {
                     "type": "string",
                     "description": "Reference genome.",
-                    "default": 16,
-                    "help_text": "Reference genome you would like to use rather than getting a centriod."
+                    "default": "Null",
+                    "help_text": "Reference genome you would like to use rather than calculating a centroid. This only works for single species runs. If you are running multiple species, then you will need to run each species separately with its own reference genome. Should be a string e.g. `--ref_genome /path/to/reference.fasta`"
                 },
                 "window_size": {
                     "type": "integer",

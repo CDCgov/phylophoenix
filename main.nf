@@ -46,6 +46,13 @@ workflow PHYLOPHOENIX_WF {
     // check terra param make suer its a boolean, if not exit with error
     if (!(params.terra instanceof Boolean)) {  exit 1, "ERROR: params.terra must be true or false, got: ${params.terra}"}
 
+    // Confirm that the reference genome parameter is a gzip-compressed file if it is provided
+    if (params.ref_genome && params.ref_genome != 'null' && params.ref_genome != '') {
+        def ref_genome_file = file(params.ref_genome)
+        if (!ref_genome_file.name.toLowerCase().endsWith('.gz')) { error "ERROR: --ref_genome must be a gzip-compressed file ending in '.gz'. Got: ${params.ref_genome}" }
+        if (!ref_genome_file.exists()) { error "ERROR: --ref_genome file not found: ${params.ref_genome}" }
+    }
+
     // // Check input path parameters to see if they exist
     // if (params.input != null ) {  // if a samplesheet is passed
     //     // allow input to be relative, turn into string and strip off the everything after the last backslash to have remainder of as the full path to the samplesheet. 

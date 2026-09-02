@@ -124,6 +124,9 @@ workflow PHYLOPHOENIX {
         geonames_ch = Channel.fromPath("${baseDir}/assets/databases/*_geolocation.txt.xz").collect()
         // Allow outdir to be relative
         outdir_path = Channel.fromPath(params.outdir, relative: true)
+        // Create channel for reference genome
+        ref_genome_ch = params.ref_genome ? Channel.fromPath(params.ref_genome, relative: true) : []
+        //ref_genome_ch = Channel.fromPath(ref_genome, relative: true).ifEmpty([])
 
         // Create input channels for files we need to make griphin
         CREATE_INPUT_CHANNELS (
@@ -237,19 +240,38 @@ workflow PHYLOPHOENIX {
                 ch_versions = ch_versions.mix(CREATE_META.out.versions)
             }
 
-            // Run Mash on groups of samples by seq type
-            MASH_DIST (
-                CREATE_META.out.st_scaffolds
-            )
-            ch_versions = ch_versions.mix(MASH_DIST.out.versions)
+            // In Groovy an empty List evaluates to false in a boolean context, and a Path object evaluates to true. 
+            def dist_ch
+            if (!ref_genome_ch) {
 
-            // Creating channel [ ST, [distance_1, distance_2] ]
-            dist_ch = MASH_DIST.out.dist.map { meta, file -> [meta.seq_type, meta, file] } // Add seq_type as key
-                .groupTuple() // Group by seq_type
-                .map { seq_type, old_meta, files -> 
+                // Run Mash on groups of samples by seq type
+                MASH_DIST (
+                    CREATE_META.out.st_scaffolds
+                )
+                ch_versions = ch_versions.mix(MASH_DIST.out.versions)
+
+                // Creating channel [ ST, [distance_1, distance_2] ]
+                dist_ch = MASH_DIST.out.dist.map { meta, file -> [meta.seq_type, meta, file] } // Add seq_type as key
+                    .groupTuple() // Group by seq_type
+                    .map { seq_type, old_meta, files -> 
+                            def meta = [:]
+                            meta.seq_type = old_meta.seq_type.unique()[0]
+                            return tuple ( meta, [] , files) } // Restructure to orginal format
+                centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
+
+            } else {
+
+                // Get meta from scaffolds channel and combine with ref genome channel to pass to GET_CENTROID
+                dist_ch = CREATE_META.out.st_scaffolds.map { items -> 
                         def meta = [:]
-                        meta.seq_type = old_meta.seq_type.unique()[0]
-                        return tuple ( meta, files ) } // Restructure to orginal format
+                        meta.seq_type = items[0].seq_type
+                        def files = items[1..-1]
+                        return meta }.unique()
+                    .combine(ref_genome_ch).map{meta, ref_genome -> [[seq_type: meta.seq_type], ref_genome, []]}
+                dist_ch.view()
+
+            }
+
             centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
 
             // Take in all mash distance files then use the samplesheet to return the centroid assembly
@@ -263,6 +285,13 @@ workflow PHYLOPHOENIX {
             asset_prep_ch = GET_CENTROID.out.centroid_path.splitCsv( header:false, sep:',' ).map{meta, list -> 
                 def scaffold = list[0] // extract the file from the list
                 return [meta, scaffold]}.join(CREATE_META.out.st_snv_samplesheets, by: [0,0])
+
+            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
+            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
+            centroid_id_ch = GET_CENTROID.out.centroid_info.map{ meta, centroid_file ->
+                            def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
+                            tuple(meta.seq_type, centroid_id)
+                        }
 
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             // also unzip the geoname files for cleaning metadata file. 
@@ -287,15 +316,6 @@ workflow PHYLOPHOENIX {
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA.out.versions)
             }
-
-            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
-            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
-            //GET_CENTROID.out.centroid_info.map{ meta, centroid_file -> log.info "parsed centroid_id: ${(centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]}"}
-
-            centroid_id_ch = GET_CENTROID.out.centroid_info.map{ meta, centroid_file ->
-                                def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
-                                tuple(meta.seq_type, centroid_id)
-                            }
 
             filtered_reads_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
                 .combine(centroid_id_ch, by: 0)
