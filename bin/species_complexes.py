@@ -93,6 +93,12 @@ SPECIES_COMPLEXES = {
         "Mycobacterium senriense",
         "Mycobacterium timonense",
     },
+    "Mycobacteroides chelonae-abscessus complex": {
+        "Mycobacteroides abscessus",
+        "Mycobacteroides chelonae",
+        "Mycobacterium chelonae",
+        "[Mycobacterium] chelonae",
+    },
 }
 
 # Raw taxa labels that already represent an unclassified/complex-level call
