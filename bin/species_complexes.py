@@ -8,8 +8,7 @@ complex (e.g. Citrobacter freundii complex) are consistently grouped
 together under one complex-level name wherever taxa grouping happens
 (sample sheet generation, Excel sheet splitting, SNV matrix file naming).
 
-Import into other scripts with:
-    from species_complexes import collapse_species_complex
+Import into other scripts with: from species_complexes import collapse_species_complex
 """
 
 # Species complexes: map each complex's display name to the set of member
@@ -80,6 +79,20 @@ SPECIES_COMPLEXES = {
         "Burkholderia ubonensis",
         "Burkholderia vietnamiensis",
     },
+    "Mycobacterium avium complex": {
+        "Mycobacterium arosiense",
+        "Mycobacterium avium",
+        "Mycobacterium avium-intracellulare",
+        "Mycobacterium bouchedurhonense",
+        "Mycobacterium colombiense",
+        "Mycobacterium intracellulare",
+        "Mycobacterium lepraemurium",
+        "Mycobacterium mantenii",
+        "Mycobacterium marseillense",
+        "Mycobacterium paraintracellulare",
+        "Mycobacterium senriense",
+        "Mycobacterium timonense",
+    },
 }
 
 # Raw taxa labels that already represent an unclassified/complex-level call
@@ -100,7 +113,10 @@ UNCLASSIFIED_COMPLEX_LABELS = {
     "Enterobacter genomosp. O": "Enterobacter cloacae complex",
     "Enterobacter genomosp. S": "Enterobacter cloacae complex",
     "unclassified Burkholderia cepacia complex": "Burkholderia cepacia complex",
+    "unclassified Mycobacterium avium complex (MAC)": "Mycobacterium avium complex",
+    "Mycobacterium avium complex sp.": "Mycobacterium avium complex",
 }
+
 
 def collapse_species_complex(taxa_name):
     """Collapse individual species belonging to a recognized species complex into the complex-level name, so they group together under one taxon.
@@ -110,10 +126,12 @@ def collapse_species_complex(taxa_name):
     if taxa_name is None:
         return taxa_name
     taxa_str = str(taxa_name).strip()
+
     # Direct lookup for unclassified/complex-level labels already present
     # verbatim in the source data.
     if taxa_str in UNCLASSIFIED_COMPLEX_LABELS:
         return UNCLASSIFIED_COMPLEX_LABELS[taxa_str]
+
     for complex_name, member_species in SPECIES_COMPLEXES.items():
         # Already labeled as the complex - leave as-is.
         if taxa_str == complex_name:
