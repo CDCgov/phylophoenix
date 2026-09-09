@@ -63,6 +63,14 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoft
 ========================================================================================
 */
 
+// ANSI color codes for console warnings
+def ANSI_RED    = "\033[91m"
+def ANSI_YELLOW = "\033[93m"
+def ANSI_ORANGE = "\033[38;5;208m"
+def ANSI_PURPLE = "\033[38;5;135m"
+def ANSI_GREEN  = "\033[92m"
+def ANSI_RESET  = "\033[0m"
+
 def add_empty_ch(input_ch) {
     def meta_seq_type = input_ch[0]
     output_array = [ meta_seq_type, []]
@@ -112,6 +120,8 @@ def get_taxa_and_project_ID(input_ch){
     RUN MAIN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+//Notes: Novel alleles handled in both get_st_types.py and remove_failures.py
 
 workflow PHYLOPHOENIX {
     take:
@@ -210,7 +220,9 @@ workflow PHYLOPHOENIX {
             griphin_inputs_ch,
             phx_version_ch,
             outdir_path,
-            by_st
+            by_st,
+            params.secondary_mlst,
+            params.combine_complex
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
 
@@ -356,16 +368,44 @@ workflow PHYLOPHOENIX {
         // If you pass --by_st then samples will be broken up by st type and SNVPhyl run on each st on its own
         if (by_st==true ) {
 
+            // Two exclusion reasons, tracked separately since they need different treatment depending on whether an all-samples run also exists (--no_all).
+            // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
+            redundant_taxa_ch = GRIPHIN_WORKFLOW.out.redundant_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
+            insufficient_samples_ch = GRIPHIN_WORKFLOW.out.insufficient_samples_file.map { file -> file.readLines().findAll { it.trim() } }.first()
+            by_st_eligible_ch = GRIPHIN_WORKFLOW.out.by_st_eligible_file.map { file -> file.text.trim() == "true" }.first()
+
             def gated_directory_samplesheet_ch
+            def exclude_list_ch
             if (params.no_all==true) {
+                // No all-samples run exists here, so single-ST taxa are NOT redundant -- by-ST is the only place these samples will ever be analyzed, so they must run. 
+                // Only exclude combos that are genuinely infeasible (fewer than 2 passing samples).
                 gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
+                exclude_list_ch = insufficient_samples_ch
+
+                insufficient_samples_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}WARNING: --no_all was passed, so the following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples (not enough for a meaningful comparison), and there is no all-samples run to otherwise cover them -- these samples will not appear in any SNVPhyl comparison: ${it}. ${ANSI_RESET}" }
+                // Note: taxa with only one ST are intentionally NOT excluded here, since there's no all-samples run for them to be redundant with.
+                redundant_taxa_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_PURPLE}NOTE: --no_all was passed, so the following taxa/ST combinations have only one ST for their taxa but will still run by-ST, since there is no all-samples run to cover them instead: ${it}. ${ANSI_RESET}" }
+
             } else {
-                // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
-                single_st_taxa_ch = GRIPHIN_WORKFLOW.out.single_st_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
-                // The following taxa have only one ST and will be suppressed from running by ST redundant. If empty run all samples by st
-                single_st_taxa_ch.view{ it -> it.isEmpty() ? null : "The following taxa have only one ST and will be excluded from the by-ST run, since it would be redundant: ${it}" }
-                // Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
-                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet.combine(single_st_taxa_ch.map{ list -> [list] }).filter{ samplesheet, single_st_list -> !single_st_list.isEmpty() }.map{ samplesheet, single_st_list -> [samplesheet] }
+
+                // An all-samples run exists, so gate the whole by-ST section on whether anything is actually eligible (not redundant AND has enough samples)
+                // If nothing qualifies, by-ST would add no value beyond the all-samples run and is skipped entirely.Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
+                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
+                    .combine(by_st_eligible_ch)
+                    .filter{ samplesheet, eligible -> eligible }
+                    .map{ samplesheet, eligible -> samplesheet }
+                // Combine both exclusion reasons for filtering seq_types out of the by-ST run below.
+                exclude_list_ch = redundant_taxa_ch.map{ list -> [list] }.combine(insufficient_samples_ch.map{ list -> [list] }).map{ redundant_taxa, insufficient_samples -> redundant_taxa + insufficient_samples }
+                // Print out details of what is being filtered out.
+                redundant_taxa_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}The following taxa/ST combinations have only one ST for their taxa and will be excluded from the by-ST run, since it would be redundant with the all-samples run: ${it}. ${ANSI_RESET}" }
+                insufficient_samples_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}WARNING: The following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples -- these samples are still covered by the all-samples run, but will not appear in any by-ST comparison: ${it}. ${ANSI_RESET}" }
+                by_st_eligible_ch.view{ eligible -> eligible ? null :
+                    "${ANSI_ORANGE}WARNING: No taxa/ST combination has more than one ST and at least 2 passing samples -- skipping the by-ST section entirely (all samples are still covered by the all-samples run). ${ANSI_RESET}" }
+
             }
 
             // Creates samplesheets with sample,seq_type,path_to_assembly
@@ -374,13 +414,13 @@ workflow PHYLOPHOENIX {
                 blind_path = Channel.fromPath(params.blind_list, relative: true)
                 // get sequence types with a blind list
                 GET_SEQUENCE_TYPES (
-                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.use_secondary_mlst, params.combine_complex
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             } else {
                 // get sequence types without a blind list
                 GET_SEQUENCE_TYPES (
-                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.use_secondary_mlst, params.combine_complex
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.secondary_mlst, params.combine_complex
                 )
                 ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
             }
@@ -388,7 +428,6 @@ workflow PHYLOPHOENIX {
             if (params.metadata!=null) {
                 // get metadata into channel
                 metadata  = Channel.fromPath(params.metadata, relative: true)
-
                 // creates channel: [ val(meta.id, meta.st), [ scaffolds_1, scaffolds_2 ] ]
                 CREATE_META_BY_ST (
                     GET_SEQUENCE_TYPES.out.st_samplesheets, GET_SEQUENCE_TYPES.out.st_snv_samplesheets, metadata, true, CREATE_INPUT_CHANNELS.out.reads
@@ -400,19 +439,15 @@ workflow PHYLOPHOENIX {
                 )
             }
 
-            def filtered_st_scaffolds_ch
-            if (params.no_all==true) {
-                filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds
-            } else {
-                // Group scaffold paths under meta, combine with the list of redundant single-ST taxa, drop any samples whose seq_type is single-ST (already covered by the all-samples run), then flatten
-                // scaffolds back into the tuple: [meta, scaffold_1, scaffold_2, ...]
-                filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds.map{items ->
-                                        def meta = items[0]
-                                        def scaffolds = items[1..-1]
-                                        return [meta, scaffolds]
-                                    }
-                                    .combine(single_st_taxa_ch.map{ list -> [list] }).filter{ meta, scaffolds, single_st_list -> !single_st_list.contains(meta.seq_type) }.map{ meta, scaffolds, single_st_list -> [meta, *scaffolds] }
-            }
+            // Filter out any seq_type in exclude_list_ch -- for no_all==true this only drops infeasible (<2 sample) combos; for no_all==false it drops both infeasible AND redundant combos.
+            filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds.map{items ->
+                                    def meta = items[0]
+                                    def scaffolds = items[1..-1]
+                                    return [meta, scaffolds]
+                                }
+                                .combine(exclude_list_ch.map{ list -> [list] })
+                                .filter{ meta, scaffolds, ex_list -> !ex_list.contains(meta.seq_type) }
+                                .map{ meta, scaffolds, ex_list -> [meta, *scaffolds] }
 
             // Run Mash on groups of samples by seq type
             MASH_DIST_BY_ST (
@@ -429,7 +464,8 @@ workflow PHYLOPHOENIX {
                 .map{meta_old, mash_dists -> 
                     def meta = [:]
                     meta.seq_type = meta_old
-                    return tuple( meta, mash_dists)} // Now returns [[meta.seq_type], [ distance_1, distance_2 ]]
+                    return tuple( meta, [], mash_dists)} // Now returns [[meta.seq_type], [ distance_1, distance_2 ]]
+            // add [] at end for ref_genome, will have to change to allow this to work with --by_st later. 
 
             // Add samplesheet to all mash distance channels
             centroid_st_ch =  st_mash_dists.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)

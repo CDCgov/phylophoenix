@@ -22,6 +22,8 @@ workflow GRIPHIN_WORKFLOW {
         orginal_phx_version    // string: original PHoenix version used to generate the input files
         outdir
         by_st_param            //params.by_st
+        secondary_mlst_param   //params.secondary_mlst
+        combine_complex_param  //params.combine_complex
 
 
     main:
@@ -69,8 +71,8 @@ workflow GRIPHIN_WORKFLOW {
                 shigapass_bool,                               // val(shigapass_detected)
                 false,                                        // val(centar_detected)
                 bldb,                                         // path(bldb)
-                true,                                        // val(filter_var)
-                false,                                         // val(dont_publish) --> need it for the naming of the output files
+                true,                                         // val(filter_var)
+                false,                                        // val(dont_publish) --> need it for the naming of the output files
                 [],                                           // path(blind_list)
                 orginal_phx_version                           // val(old_phx_version)
             )
@@ -78,9 +80,10 @@ workflow GRIPHIN_WORKFLOW {
         }
         directory_samplesheet = GRIPHIN.out.converted_samplesheet
 
-        // Identify samples failed PHX specs
+        // Identify samples failed PHX specs and remove them from the samplesheet. 
+        // Also creates files to check if running --by_ST will be redundant - used for filtering in phylophoenix.nf 
         REMOVE_FAILURES(
-            GRIPHIN.out.griphin_tsv_report, directory_samplesheet, by_st_param
+            GRIPHIN.out.griphin_tsv_report, directory_samplesheet, by_st_param, secondary_mlst_param, combine_complex_param
         )
         ch_versions = ch_versions.mix(REMOVE_FAILURES.out.versions)
 
@@ -95,9 +98,11 @@ workflow GRIPHIN_WORKFLOW {
         //filtered_reads = reads.map{reads -> [ reads ] }.combine(ids_to_remove_ch).map{reads, ids_to_remove_ch -> filter_reads(reads, ids_to_remove_ch) }.flatten()
 
     emit:
-        griphin_report        = GRIPHIN.out.griphin_excel_report      // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.xlsx') ]
-        griphin_tsv_report    = GRIPHIN.out.griphin_tsv_report  // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.tsv') ]
-        directory_samplesheet = final_directory_samplesheet     // channel: [ val(meta), path('Directory_samplesheet.csv') ]
-        single_st_taxa_file   = REMOVE_FAILURES.out.single_st_taxa_file
-        versions              = ch_versions                     // channel: [ versions.yml ]
+        griphin_report            = GRIPHIN.out.griphin_excel_report      // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.xlsx') ]
+        griphin_tsv_report        = GRIPHIN.out.griphin_tsv_report  // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.tsv') ]
+        directory_samplesheet     = final_directory_samplesheet     // channel: [ val(meta), path('Directory_samplesheet.csv') ]
+        redundant_taxa_file       = REMOVE_FAILURES.out.redundant_taxa_file
+        insufficient_samples_file = REMOVE_FAILURES.out.insufficient_samples_file
+        by_st_eligible_file       = REMOVE_FAILURES.out.by_st_eligible_file
+        versions                  = ch_versions                     // channel: [ versions.yml ]
 }

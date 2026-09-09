@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema",
-    "$id": "https://raw.githubusercontent.com/dhqp/phylophoenix/main/nextflow_schema.json",
-    "title": "cdcgov/phylophoenix pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/dhqp/PhyloPHoeNIx/main/nextflow_schema.json",
+    "title": "cdcgov/PhyloPHoeNIx pipeline parameters",
     "description": "Pipeline for relatedness determination using PHoeNIx output.",
     "type": "object",
     "definitions": {
@@ -19,7 +19,7 @@
                     "pattern": "^\\S+\\.csv$",
                     "schema": "assets/schema_input.json",
                     "description": "Path to comma-separated file containing the location of the samples you want to run.",
-                    "help_text": "You will need to create a csv file with the location of your of the samples you want to run before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/phylophoenix/usage#samplesheet-input).",
+                    "help_text": "You will need to create a csv file with the location of your of the samples you want to run before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/PhyloPHoeNIx/usage#samplesheet-input).",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
@@ -34,22 +34,28 @@
                     "description": "The input directory that is a PHoeNIx style structure. A samplesheet will be created from this to run.",
                     "fa_icon": "fas fa-folder-open"
                 },
+                "by_all": {
+                    "type": "boolean",
+                    "default": "False",
+                    "description": "By default PhyloPHoeNIx only runs all samples of the same species together. If you want to run ALL samples together regardless of their taxa ID pass --by_all.",
+                    "fa_icon": "fas fa-keyboard"
+                },
                 "by_st": {
                     "type": "boolean",
                     "default": "False",
-                    "description": "Passing this parameter means that phylophoenix will split the input dataset up my the their MLST and running isolates together as a group by MLST.",
+                    "description": "Passing this parameter means that PhyloPHoeNIx will split the input dataset up my the their MLST and running isolates together as a group by MLST.",
                     "fa_icon": "fas fa-keyboard"
                 },
-                "no_all": {
+                "no_species": {
                     "type": "boolean",
                     "default": "False",
-                    "description": "By default Phylophoenix runs all samples together and only splits samples by st if --by_st is passed. If you ONLY want to run samples split by ST and not all together then pass --by_st and --no_all.",
+                    "description": "By default PhyloPHoeNIx runs all samples of the same species together and only splits samples by st if --by_st is passed. If you ONLY want to run samples split by ST and not all together then pass --by_st and --no_species.",
                     "fa_icon": "fas fa-keyboard"
                 },
-                "use_secondary_mlst": {
+                "secondary_mlst": {
                     "type": "boolean",
                     "default": "False",
-                    "description": "Use in conjunction with --by_st if you want to use the secondary MLST schema to sort samples for analysis.",
+                    "description": "Use in conjunction with --by_st if you want to use the secondary MLST schema rather than the primary to sort samples for analysis.",
                     "fa_icon": "fas fa-keyboard"
                 },
                 "combine_complex": {
@@ -114,7 +120,7 @@
                 "force": {
                     "type": "boolean",
                     "default": "False",
-                    "description": "By default Phylophoenix will remove any isolates from the analysis if it failed QC in PHoeNIx (FAIL in Minimum_QC_Check column). If you pass --force then Phylophoenix will ignore if samples have failed QC. This can produce unexpected results as some files marked 'FAIL' might have failed for lack of reads or missing files, which can cause downstream issues.",
+                    "description": "By default PhyloPHoeNIx will remove any isolates from the analysis if it failed QC in PHoeNIx (FAIL in Minimum_QC_Check column). If you pass --force then PhyloPHoeNIx will ignore if samples have failed QC. This can produce unexpected results as some files marked 'FAIL' might have failed for lack of reads or missing files, which can cause downstream issues.",
                     "fa_icon": "fas fa-keyboard"
                 }
             }

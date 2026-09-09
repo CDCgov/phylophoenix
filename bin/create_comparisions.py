@@ -19,6 +19,8 @@ def parseArgs(args=None):
     parser.add_argument("-s", "--samplesheet", default=None, required=False, dest="samplesheet", help="GRiPHin samplesheet of sample,directory in csv format.")
     parser.add_argument("-g", "--griphin", default=None, required=False, dest="griphin", help="GRiPHin file.")
     parser.add_argument("--combine_complex", default=False, action="store_true", required=False, dest="combine_complex", help="Group species belonging to the same species complex (e.g. Citrobacter freundii complex) together instead of treating them as separate taxa.")
+    parser.add_argument('--by_all', default=None, required=False, dest='by_all', help='Force all taxa to be included in the analysis regardless of species.')
+    parser.add_argument('--no_species', default=None, required=False, dest='no_species', help='Exclude splitting by species from the analysis.')
     parser.add_argument("--version", action="version", version=get_version())# Add an argument to display the version
     return parser.parse_args()
 

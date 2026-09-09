@@ -39,8 +39,8 @@ workflow PHYLOPHOENIX_WF {
         by_st = params.by_st //this is the default of false
     }
 
-    if (params.use_secondary_mlst==true && params.by_st==false) {
-        exit 1, "you passed --use_secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
+    if (params.secondary_mlst==true && params.by_st==false) {
+        exit 1, "you passed --secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
     }
 
     // check terra param make suer its a boolean, if not exit with error
@@ -51,6 +51,7 @@ workflow PHYLOPHOENIX_WF {
         def ref_genome_file = file(params.ref_genome)
         if (!ref_genome_file.name.toLowerCase().endsWith('.gz')) { error "ERROR: --ref_genome must be a gzip-compressed file ending in '.gz'. Got: ${params.ref_genome}" }
         if (!ref_genome_file.exists()) { error "ERROR: --ref_genome file not found: ${params.ref_genome}" }
+        if (by_st) { error "ERROR: --ref_genome can't be used with --by_st in this version of phylophoenix. Support for this will be added later." }
     }
 
     // // Check input path parameters to see if they exist
