@@ -126,7 +126,6 @@ def get_taxa_and_project_ID(input_ch){
 workflow PHYLOPHOENIX {
     take:
         input_samplesheet_path
-        by_st
         ch_versions
 
     main:
@@ -220,19 +219,19 @@ workflow PHYLOPHOENIX {
             griphin_inputs_ch,
             phx_version_ch,
             outdir_path,
-            by_st,
+            params.by_st,
             params.secondary_mlst,
             params.combine_complex
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
 
-        // If you pass --no_all then samples will not be run all together
-        if (params.no_all==false) {
+        // If you pass --no_species then samples will not be run all together regardless of taxa
+        if (params.by_all==true || params.no_species==false) {
             // Allow outdir to be relative
             //outdir_path = Channel.fromPath(params.outdir, relative: true, type: 'dir')
             // Creates samplesheets with sampleid,seq_type,path_to_assembly
             GET_COMPARISONS (
-                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_tsv_report, params.combine_complex
+                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_tsv_report, params.combine_complex, params.by_all, params.no_species
             )
             ch_versions = ch_versions.mix(GET_COMPARISONS.out.versions)
 
@@ -366,9 +365,9 @@ workflow PHYLOPHOENIX {
         }
 
         // If you pass --by_st then samples will be broken up by st type and SNVPhyl run on each st on its own
-        if (by_st==true ) {
+        if (params.by_st==true ) {
 
-            // Two exclusion reasons, tracked separately since they need different treatment depending on whether an all-samples run also exists (--no_all).
+            // Two exclusion reasons, tracked separately since they need different treatment depending on whether an all-samples run also exists (--no_species).
             // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
             redundant_taxa_ch = GRIPHIN_WORKFLOW.out.redundant_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
             insufficient_samples_ch = GRIPHIN_WORKFLOW.out.insufficient_samples_file.map { file -> file.readLines().findAll { it.trim() } }.first()
@@ -376,17 +375,17 @@ workflow PHYLOPHOENIX {
 
             def gated_directory_samplesheet_ch
             def exclude_list_ch
-            if (params.no_all==true) {
+            if (params.no_species==true) {
                 // No all-samples run exists here, so single-ST taxa are NOT redundant -- by-ST is the only place these samples will ever be analyzed, so they must run. 
                 // Only exclude combos that are genuinely infeasible (fewer than 2 passing samples).
                 gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
                 exclude_list_ch = insufficient_samples_ch
 
                 insufficient_samples_ch.view{ it -> it.isEmpty() ? null :
-                    "${ANSI_ORANGE}WARNING: --no_all was passed, so the following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples (not enough for a meaningful comparison), and there is no all-samples run to otherwise cover them -- these samples will not appear in any SNVPhyl comparison: ${it}. ${ANSI_RESET}" }
+                    "${ANSI_ORANGE}WARNING: --no_species was passed, so the following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples (not enough for a meaningful comparison), and there is no all-samples run to otherwise cover them -- these samples will not appear in any SNVPhyl comparison: ${it}. ${ANSI_RESET}" }
                 // Note: taxa with only one ST are intentionally NOT excluded here, since there's no all-samples run for them to be redundant with.
                 redundant_taxa_ch.view{ it -> it.isEmpty() ? null :
-                    "${ANSI_PURPLE}NOTE: --no_all was passed, so the following taxa/ST combinations have only one ST for their taxa but will still run by-ST, since there is no all-samples run to cover them instead: ${it}. ${ANSI_RESET}" }
+                    "${ANSI_PURPLE}NOTE: --no_species was passed, so the following taxa/ST combinations have only one ST for their taxa but will still run by-ST, since there is no all-samples run to cover them instead: ${it}. ${ANSI_RESET}" }
 
             } else {
 
@@ -439,7 +438,7 @@ workflow PHYLOPHOENIX {
                 )
             }
 
-            // Filter out any seq_type in exclude_list_ch -- for no_all==true this only drops infeasible (<2 sample) combos; for no_all==false it drops both infeasible AND redundant combos.
+            // Filter out any seq_type in exclude_list_ch -- for no_species==true this only drops infeasible (<2 sample) combos; for no_species==false it drops both infeasible AND redundant combos.
             filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds.map{items ->
                                     def meta = items[0]
                                     def scaffolds = items[1..-1]
@@ -548,20 +547,23 @@ workflow PHYLOPHOENIX {
             ch_versions = ch_versions.mix(RENAME_REF_IN_OUTPUT_BY_ST.out.versions)
         }
 
-        if (by_st==true) {
-            if (params.no_all==false) {
+        if (params.by_st==true) {
+            if (params.by_all==true || params.no_species==false) {
                 // collect files to add to griphin summary, flattening all + by-st results into one list
                 snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect().combine(RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect().ifEmpty([]))//.map{ all_matrices, by_st_matrices -> (all_matrices + by_st_matrices) }
                 vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().combine(SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().ifEmpty([]))//.map { all_vcf2core, by_st_vcf2core -> (all_vcf2core + by_st_vcf2core) }
+                snvAlignment_ch = SNVPHYL.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect().combine(SNVPHYL_BY_ST.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect().ifEmpty([]))
             } else {
                 // collect files to add to griphin summary
                 snvMatrix_ch = RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect()
                 vcf2core_ch = SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect()
+                snvAlignment_ch = SNVPHYL_BY_ST.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect()
             }
         } else {
             // collect files to add to griphin summary
             snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect()
             vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect()
+            snvAlignment_ch = SNVPHYL.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect()
         }
 
         if (params.blind_list != null){ // if control list is passed allow it to be relative
@@ -569,13 +571,13 @@ workflow PHYLOPHOENIX {
             blind_path = Channel.fromPath(params.blind_list, relative: true)
             // Create report
             COMBINE_GRIPHIN_SNVPHYL (
-                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.window_size, params.combine_complex
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, snvAlignment_ch, blind_path, params.window_size, params.combine_complex, params.by_all
             )
             ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
         } else {
             // combine without blinding
             COMBINE_GRIPHIN_SNVPHYL (
-                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.window_size, params.combine_complex
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, snvAlignment_ch, [], params.window_size, params.combine_complex, params.by_all
             )
             ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
         }

@@ -314,6 +314,9 @@ workflow SNVPHYL {
         )
         ch_versions = ch_versions.mix(MAKE_SNV.out.versions)
 
+
+        VCF2SNV_ALIGNMENT.out.snvAlignment.join(consolidated_bcfs_ch, by: [0]).join(VCF2SNV_ALIGNMENT.out.emptyMatrix, by: [0]).view()
+
         // Filter STs that don't have > 2 samples as tree building will fail, but we will want the SNV Matrix. If empty and create a placeholder empty channel to keep down stream processes happy.
         phylm_ch = VCF2SNV_ALIGNMENT.out.snvAlignment.join(consolidated_bcfs_ch, by: [0])
             .join(VCF2SNV_ALIGNMENT.out.emptyMatrix, by: [0])
@@ -343,6 +346,7 @@ workflow SNVPHYL {
         snvMatrix        = MAKE_SNV.out.snvMatrix
         vcf2core         = VCF2SNV_ALIGNMENT.out.vcf2core
         phylogeneticTree = phylogeneticTree
+        snvAlignment     = VCF2SNV_ALIGNMENT.out.snvAlignment
 
 }
 

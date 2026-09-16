@@ -18,12 +18,22 @@ from species_complexes import collapse_species_complex
 def get_version():
     return "1.0.0"
 
+ALL_ISOLATES_KEY = "All_Isolates"  # matches the constant used in create_comparisons.py
+
+# The exact placeholder line VCF2SNV_ALIGNMENT writes into <seq_type>_snvAlignment.phy when
+# vcf2snv_alignment.pl finds no valid SNV positions across all samples in a group (i.e. the
+# core genome shared by every sample is empty relative to the chosen reference). When present,
+# no phylogenetic tree is built for that seq_type by PHYML.
+EMPTY_ALIGNMENT_MESSAGE = "No valid positions were found. Creating empty snvMatrix to pass to next process for clean up."
+
 def parseArgs(args=None):
     parser = argparse.ArgumentParser(description="Combine griphin file with snvmatrix information.")
     parser.add_argument("-g", "--griphin", required=True, help="Input GRiPHin_Summary.xlsx file")
     parser.add_argument('-b', '--blind_list', default=None, required=False, dest='blind_list', help='CSV file with a list of sample_name,new_name. This option will output the new_name rather than the sample name to "blind" reports.')
     parser.add_argument('-w', '--window_size', default=None, required=False, dest='window_size', help='Window size for SNVPhyl analysis.')
     parser.add_argument('--combine_complex', default=False, action='store_true', required=False, dest='combine_complex', help='Group species belonging to the same species complex (e.g. Citrobacter freundii complex) into a single sheet named after the complex.')
+    parser.add_argument('--by_all', default=False, action="store_true", required=False, dest='by_all', help='In addition to splitting samples by Final_Taxa_ID, also create one extra group containing all samples together regardless of species. Ignored if --no_species is passed.')
+    parser.add_argument('--no_species', default=False, action="store_true", required=False, dest='no_species', help='Rename the main sheet to All_Isolates regardless of whether --by_all was passed. If All_Isolates_snvMatrix.tsv/vcf2core.tsv exist (i.e. --by_all was also passed at the pipeline level), that sheet is populated as usual; otherwise it is renamed but left empty. Per-taxa sheets are still created and populated exactly as they always are (from whatever *_snvMatrix.tsv/*_vcf2core.tsv files exist, whether from an all-vs-all or by-ST run) -- --combine_complex still applies to how those sheets are grouped, unaffected by this flag.')
     parser.add_argument('--version', action='version', version=get_version())# Add an argument to display the version
     return parser.parse_args()
 
@@ -159,10 +169,28 @@ def autosize_columns_after(sheet, boundary_col_idx, last_data_row):
             # Add a little padding so text isn't flush against cell borders.
             sheet.column_dimensions[col_letter].width = max_len + 2
 
-def create_taxa_sheets(workbook, combine_complex):
+def create_taxa_sheets(workbook, combine_complex, by_all, no_species):
     """Create separate sheets for each unique taxa from Final_Taxa_ID column. 
     If combine_complex is True, species belonging to a recognized species complex (see species_complexes.py) are grouped together into a single sheet named after the complex.
     Columns that are entirely blank across a sheet's data rows are removed, and row-1 merged headers are shrunk/dropped to match.
+
+    Per-taxa sheets are ALWAYS created and populated, regardless of no_species -- append_tsv_to_excel()
+    matches sheets to whatever *_snvMatrix.tsv/*_vcf2core.tsv files actually exist on disk, and those
+    files are the same shape whether they came from an all-vs-all comparison or a by-ST comparison
+    (e.g. "Escherichia_coli_ST131_snvMatrix.tsv" reduces to the same "Escherichia_coli" taxa key as
+    "All_Escherichia_coli_Isolates_snvMatrix.tsv" would). combine_complex continues to control how
+    those per-taxa sheets are grouped, unaffected by no_species.
+
+    If by_all OR no_species is True, the original/main sheet (workbook.active, which already contains
+    every sample's row unfiltered) is renamed to ALL_ISOLATES_KEY ("All_Isolates") and moved to the
+    first position in the workbook. Blank-column removal is deliberately NOT applied to this sheet.
+    Whether it ends up populated with SNV data depends entirely on whether All_Isolates_snvMatrix.tsv/
+    All_Isolates_vcf2core.tsv exist on disk (i.e. whether --by_all was passed at the pipeline level):
+      - by_all=True: those files exist (regardless of no_species) -> sheet gets populated.
+      - by_all=False, no_species=True: those files do NOT exist (no all-vs-all run occurred) -> the
+        sheet is renamed and repositioned, but append_tsv_to_excel() simply has no matching file to
+        append, so it stays empty. No special-casing needed here for that; it falls out naturally
+        from the file-glob-driven append step.
     """
     original_sheet = workbook.active
     # Find the Final_Taxa_ID column
@@ -223,16 +251,35 @@ def create_taxa_sheets(workbook, combine_complex):
         remove_blank_columns(new_sheet, original_sheet, len(taxa_rows[taxa]))
         # Store mapping of taxa to sheet name
         taxa_sheet_mapping[taxa.replace(" ", "_")] = sheet_name
+
+    if by_all or no_species:
+        # Rename the original/main sheet in place.
+        # Deliberately no blank-column removal here -- unlike per-taxa sheets, this sheet is never trimmed.
+        original_sheet.title = ALL_ISOLATES_KEY
+        # Move to the first position in the workbook.
+        current_index = workbook.sheetnames.index(ALL_ISOLATES_KEY)
+        workbook.move_sheet(ALL_ISOLATES_KEY, offset=-current_index)
+        # Map it so append_tsv_to_excel() can find it via extract_taxa_from_filename() -- if
+        # All_Isolates_snvMatrix.tsv/vcf2core.tsv don't exist on disk (by_all=False case), this
+        # mapping simply never gets used and the sheet stays as an empty, renamed, repositioned tab.
+        taxa_sheet_mapping[ALL_ISOLATES_KEY] = ALL_ISOLATES_KEY
+
     return taxa_sheet_mapping
 
 
 def extract_taxa_from_filename(filename, combine_complex):
     """Extract taxa name from SNVMatrix filename.
     When combine_complex is True, expects complex-level files to include the literal "complex" segment, e.g. "Citrobacter_freundii_complex_ST169_snvMatrix.tsv" and "All_Citrobacter_freundii_complex_Isolates_snvMatrix.tsv".
+
+    The all-samples file ("All_Isolates_snvMatrix.tsv", produced when --by_all is passed to
+    create_comparisons.py) is handled as a special case up front, since it isn't a per-species
+    file and shouldn't go through the "All_" prefix / "_Isolates" suffix stripping below --
+    doing so would incorrectly reduce it to just "Isolates" instead of "All_Isolates".
     """
     basename = os.path.basename(filename)
-    # Remove _snvMatrix.tsv
     taxa = basename.replace('_snvMatrix.tsv', '')
+    if taxa == ALL_ISOLATES_KEY:
+        return ALL_ISOLATES_KEY
     # Remove All_ prefix if present
     if taxa.startswith('All_'):
         taxa = taxa[4:]  # Remove 'All_'
@@ -248,8 +295,42 @@ def extract_taxa_from_filename(filename, combine_complex):
     return taxa
 
 
-def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_sheet_mapping, window_size, snv_range, combine_complex):
-    """Append SNVPhyl matrices to their corresponding taxa sheets."""
+def get_empty_alignment_flags():
+    """
+    Check each *_snvAlignment.phy file for EMPTY_ALIGNMENT_MESSAGE, which VCF2SNV_ALIGNMENT
+    writes when vcf2snv_alignment.pl finds no valid SNV positions across all samples in a
+    seq_type (e.g. when comparing genetically divergent samples, such as multiple species,
+    against one reference -- the core genome collapses to nothing). When present, no
+    phylogenetic tree is built for that seq_type. This is used to add a clear, in-report
+    explanation rather than leaving the missing tree unexplained.
+
+    Returns a dict mapping seq_type -> True/False.
+
+    If a *_snvAlignment.phy file can't be read, a WARNING is printed and that seq_type is
+    treated as False (no explanatory message added), since we can't confirm the empty-alignment
+    case is actually why a tree might be missing -- this avoids stating an incorrect reason.
+    Seq_types with no matching file at all simply aren't present in the returned dict; callers
+    should treat a missing key the same as False.
+    """
+    flags = {}
+    for f in glob.glob("*_snvAlignment.phy"):
+        seq_type = os.path.basename(f).replace('_snvAlignment.phy', '')
+        try:
+            with open(f, 'r') as fh:
+                content = fh.read()
+            flags[seq_type] = EMPTY_ALIGNMENT_MESSAGE in content
+        except Exception as e:
+            print(f"WARNING: Could not read '{f}' to check for the empty-alignment message: {e}. Not adding an explanatory message for seq_type '{seq_type}'.")
+            flags[seq_type] = False
+    return flags
+
+
+def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_sheet_mapping, window_size, snv_range, combine_complex, empty_alignment_flags):
+    """Append SNVPhyl matrices to their corresponding taxa sheets.
+
+    If empty_alignment_flags marks a seq_type as True (i.e. its *_snvAlignment.phy file contains EMPTY_ALIGNMENT_MESSAGE), a red warning row explaining that no phylogenetic tree was created
+    is inserted directly after that seq_type's label row, in addition to -- not instead of -- the normal Reference/Window size/core estimate/data table output that follows.
+    """
     # Group SNVMatrix files by taxa
     taxa_files = {}
     for snvmatrix in snvmatrices:
@@ -273,6 +354,7 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
         start_row = sheet.max_row + 2
         # Define formatting
         bold_font = Font(bold=True)
+        red_font = Font(color="FF0000", bold=True)
         count = 0
         for snvmatrix in files:
             # Load the TSV file data
@@ -292,32 +374,54 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
             seq_type = os.path.basename(snvmatrix).replace('_snvMatrix.tsv', '')
             # Write seq_type label
             sheet.cell(row=start_row + 1, column=1, value=seq_type).font = bold_font
+            # If this seq_type's alignment was empty (no phylogenetic tree could be built), insert
+            # a red explanatory row directly after the label, and shift everything below it down
+            # by one row so the normal output (Reference/Window size/etc.) still follows in full.
+            offset = 1 if empty_alignment_flags.get(seq_type, False) else 0
+            if offset:
+                warning_cell = sheet.cell(
+                    row=start_row + 2, column=1,
+                    value=("No phylogenetic tree was created for this group: no valid SNV positions were found relative to the chosen reference, meaning the shared core genome is very small. This usually happens when comparing very genetically divergent samples.")
+                )
+                warning_cell.font = red_font
             # Extract and write reference
-            ref_without_asterisk = [col for col in snvmatrix_df.columns if col.endswith('*')][0][:-1]
+            ref_columns = [col for col in snvmatrix_df.columns if col.endswith('*')]
+            if not ref_columns:
+                # No column was marked with the trailing '*' that identifies the reference/centroid
+                # sample for this comparison. This can happen if the upstream SNVPhyl/centroid
+                # steps failed to tag a reference for this seq_type -- rather than crashing the
+                # entire combined report over one malformed matrix, log it clearly and continue
+                # with a placeholder so the rest of this seq_type's data still gets written.
+                print(f"WARNING: No reference column (marked with trailing '*') found in '{snvmatrix}'. Expected exactly one such column to identify the centroid/reference sample. Writing 'Unknown' as a placeholder -- check the upstream SNVPhyl/centroid-selection steps for seq_type '{seq_type}'.")
+                ref_without_asterisk = "Unknown"
+            else:
+                if len(ref_columns) > 1:
+                    print(f"WARNING: Found {len(ref_columns)} columns marked with a trailing '*' in '{snvmatrix}' (expected exactly 1): {ref_columns}. Using the first one.")
+                ref_without_asterisk = ref_columns[0][:-1]
             if rename_mapping is not None and ref_without_asterisk in rename_mapping:
                 ref_without_asterisk = rename_mapping[ref_without_asterisk]
-            sheet.cell(row=start_row + 2, column=1, value="Reference:")
-            sheet.cell(row=start_row + 2, column=2, value=ref_without_asterisk)
+            sheet.cell(row=start_row + 2 + offset, column=1, value="Reference:")
+            sheet.cell(row=start_row + 2 + offset, column=2, value=ref_without_asterisk)
             # Write Window Size
-            sheet.cell(row=start_row + 3, column=1, value="Window size:")
-            sheet.cell(row=start_row + 3, column=2, value=str(window_size))
+            sheet.cell(row=start_row + 3 + offset, column=1, value="Window size:")
+            sheet.cell(row=start_row + 3 + offset, column=2, value=str(window_size))
             # Write core genome percentage
-            sheet.cell(row=start_row + 4, column=1, value="SNVPhyl core estimate:")
-            sheet.cell(row=start_row + 4, column=2, value=str(result_dict.get(seq_type)) + "%")
+            sheet.cell(row=start_row + 4 + offset, column=1, value="SNVPhyl core estimate:")
+            sheet.cell(row=start_row + 4 + offset, column=2, value=str(result_dict.get(seq_type)) + "%")
             # Write core genome percentage
-            sheet.cell(row=start_row + 5, column=1, value="hqSNV Range:")
-            sheet.cell(row=start_row + 5, column=2, value=str(snv_range.get(seq_type)))
+            sheet.cell(row=start_row + 5 + offset, column=1, value="hqSNV Range:")
+            sheet.cell(row=start_row + 5 + offset, column=2, value=str(snv_range.get(seq_type)))
             # Write header
             for col_idx, column_name in enumerate(snvmatrix_df.columns, start=1):
                 if str(column_name).startswith("Unnamed:"):
                     column_name = ""
-                sheet.cell(row=start_row + 7, column=col_idx, value=column_name).font = bold_font
+                sheet.cell(row=start_row + 7 + offset, column=col_idx, value=column_name).font = bold_font
             # Write data
             for i, row in snvmatrix_df.iterrows():
                 for j, value in enumerate(row):
-                    sheet.cell(row=start_row + i + 8, column=j + 1, value=value)
+                    sheet.cell(row=start_row + i + 8 + offset, column=j + 1, value=value)
             # Update start_row for next file
-            start_row += len(snvmatrix_df) + 8
+            start_row += len(snvmatrix_df) + 8 + offset
 
 def get_sorted_files(pattern):
     # Retrieve all matching files
@@ -398,13 +502,15 @@ def main():
     old_griphin = args.griphin
     # Load workbook
     workbook = openpyxl.load_workbook(old_griphin)
-    # Create taxa sheets
-    taxa_sheet_mapping = create_taxa_sheets(workbook, args.combine_complex)
+    # Create taxa sheets (and, if --by_all or --no_species was passed, rename+reposition the main sheet as "All_Isolates")
+    taxa_sheet_mapping = create_taxa_sheets(workbook, args.combine_complex, args.by_all, args.no_species)
     # Get SNVMatrix files and core genome data
     snvmatrices, result_dict, snv_range = get_files()
     print(snvmatrices, result_dict)
+    # Check *_snvAlignment.phy files for the empty-alignment placeholder message, so a red explanation can be added for any seq_type where no phylogenetic tree could be built.
+    empty_alignment_flags = get_empty_alignment_flags()
     # Append SNVPhyl data to taxa sheets
-    append_tsv_to_excel(workbook, snvmatrices, result_dict, args.blind_list, taxa_sheet_mapping, args.window_size, snv_range, args.combine_complex)
+    append_tsv_to_excel(workbook, snvmatrices, result_dict, args.blind_list, taxa_sheet_mapping, args.window_size, snv_range, args.combine_complex, empty_alignment_flags)
     # Save the final output file
     workbook.save("SNVPhyl_GRiPHin_Summary.xlsx")
     print("Excel file with taxa sheets and SNVPhyl data saved as 'SNVPhyl_GRiPHin_Summary.xlsx'.")

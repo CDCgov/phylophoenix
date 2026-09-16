@@ -9,6 +9,9 @@
 */
 
 nextflow.enable.dsl = 2
+// ANSI color codes for console warnings
+def ANSI_RED    = "\033[91m"
+def ANSI_RESET  = "\033[0m"
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,7 +20,6 @@ nextflow.enable.dsl = 2
 */
 
 WorkflowMain.initialise(workflow, params, log)
-
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -32,15 +34,13 @@ include { PHYLOPHOENIX } from './workflows/phylophoenix'
 //
 workflow PHYLOPHOENIX_WF {
     ch_versions = Channel.empty()
-    //if you use --no_all phylophoenix assumes you want to do it by st and will set to true
-    if (params.no_all==true) {
-        by_st = true
-    } else {
-        by_st = params.by_st //this is the default of false
-    }
 
     if (params.secondary_mlst==true && params.by_st==false) {
         exit 1, "you passed --secondary_mlst but did not pass --by_st. If you want to use the secondary MLST scheme, you must also specify --by_st."
+    }
+
+    if (params.by_st==false && params.by_all==false && params.no_species==true) {
+        exit 1, "You passed --no_species, but didn't pass --by_all or --by_st so PhyloPHoeNIx doesn't know what to do. Please pass either --by_all or --by_st if you want to use --no_species."
     }
 
     // check terra param make suer its a boolean, if not exit with error
@@ -93,15 +93,7 @@ workflow PHYLOPHOENIX_WF {
             if (params.input) { ch_input = file(params.input) }
         }
     } else {
-/*        if (params.indir != null ) { // if no samplesheet is passed, but an input directory is given
-            ch_input = null //keep samplesheet input null if not passed
-            def checkPathParamList = [ params.indir ]
-            for (param in checkPathParamList) { if (param) { file(param, checkIfExists: true) } }
-            ch_input_indir = Channel.fromPath(params.indir, relative: true, type: 'dir')
-        } else { // if no samplesheet is passed and no input directory is given
-            exit 1, 'For --mode UPDATE_CDC_PHOENIX: You need EITHER an input samplesheet or a directory!' 
-        }
-    }*/
+
         if (params.indir != null ) {
 
             def checkPathParamList = [ params.indir ]
@@ -125,16 +117,16 @@ workflow PHYLOPHOENIX_WF {
 //            ch_input_indir = null // Set input directory to null since we have the samplesheet path now
             params.input = samplesheet_path // Set input to the samplesheet path for consistency in the workflow
         } else {
-            exit 1, 'For --mode UPDATE_CDC_PHOENIX: You need EITHER an input samplesheet or a directory!'
+            exit 1, 'For PhyloPHoeNIx: You need EITHER an input samplesheet or a directory!'
         }
     }
 
     if (params.force==true){
-        print("You passed --force, so samples that failed QC in PHoeNIx are going to be included in the analysis! This can produce unexpected results, DO NOT USE THIS FLAG UNLESS YOU KNOW WHAT YOU ARE DOING!")
+        print("${ANSI_RED}You passed --force, so samples that failed QC in PHoeNIx are going to be included in the analysis! This can produce unexpected results, DO NOT USE THIS FLAG UNLESS YOU KNOW WHAT YOU ARE DOING!${ANSI_RESET}")
     }
 
     main:
-        PHYLOPHOENIX ( ch_input, by_st, ch_versions )
+        PHYLOPHOENIX ( ch_input, ch_versions )
 }
 
 /*
