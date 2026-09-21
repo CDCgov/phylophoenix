@@ -285,13 +285,11 @@ def extract_taxa_from_filename(filename, combine_complex):
         taxa = taxa[4:]  # Remove 'All_'
     # Remove _Isolates suffix if present
     taxa = taxa.replace('_Isolates', '')
-    # Extract genus_species (or genus_species_complex) in case there are additional parts like ST307.
-    # Complex names have an extra "complex" part (e.g. "Citrobacter_freundii_complex_ST169"), so take the first 3 underscore-parts for those (only when combine_complex is on) and the first 2 otherwise.
-    parts = taxa.split('_')
-    if combine_complex and len(parts) >= 3 and parts[2] == 'complex':
-        taxa = f"{parts[0]}_{parts[1]}_{parts[2]}"
-    elif len(parts) >= 2:
-        taxa = f"{parts[0]}_{parts[1]}"
+    print(f"Extracted taxa from filename '{filename}': {taxa}")
+    # Strip a trailing "_ST<digits>" (e.g. "_ST131", "_ST5") if present -- this is the only variable component added by per-ST filenames (e.g. "Escherichia_coli_ST131", "Providencia_sp._PROV170_ST5", "Citrobacter_freundii_complex_ST169").
+    # Stripping it directly, rather than inferring the taxa from a fixed number of underscore-separated  parts, is robust to taxa names of any shape -- including "sp." placeholder species (e.g. "Providencia_sp._PROV170") which don't fit a fixed 2- or 3-part assumption.
+    # Whatever remains after stripping IS the taxa string, unchanged otherwise.
+    taxa = re.sub(r'_ST\d+$', '', taxa)
     return taxa
 
 
@@ -381,7 +379,7 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
             if offset:
                 warning_cell = sheet.cell(
                     row=start_row + 2, column=1,
-                    value=("No phylogenetic tree was created for this group: no valid SNV positions were found relative to the chosen reference, meaning the shared core genome is very small. This usually happens when comparing very genetically divergent samples.")
+                    value=("No phylogenetic tree could be built: no valid SNV positions were found, either because the shared core genome is too small (samples are genetically too divergent) or too uniform (no SNV differences in the shared core genome).")
                 )
                 warning_cell.font = red_font
             # Extract and write reference
@@ -408,7 +406,7 @@ def append_tsv_to_excel(workbook, snvmatrices, result_dict, blind_list, taxa_she
             # Write core genome percentage
             sheet.cell(row=start_row + 4 + offset, column=1, value="SNVPhyl core estimate:")
             sheet.cell(row=start_row + 4 + offset, column=2, value=str(result_dict.get(seq_type)) + "%")
-            # Write core genome percentage
+            # Write hqSNV percentage
             sheet.cell(row=start_row + 5 + offset, column=1, value="hqSNV Range:")
             sheet.cell(row=start_row + 5 + offset, column=2, value=str(snv_range.get(seq_type)))
             # Write header
@@ -441,6 +439,7 @@ def get_sorted_files(pattern):
 def get_files():
     # You only need this for glob because glob will throw an index error if not.
     snvmatrices = get_sorted_files("*_snvMatrix.tsv")
+    print(snvmatrices)
     vcf2cores = get_sorted_files("*_vcf2core.tsv")
     #create empty dictionary to fill
     result_dict = {}
