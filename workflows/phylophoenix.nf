@@ -279,7 +279,6 @@ workflow PHYLOPHOENIX {
                         def files = items[1..-1]
                         return meta }.unique()
                     .combine(ref_genome_ch).map{meta, ref_genome -> [[seq_type: meta.seq_type], ref_genome, []]}
-                dist_ch.view()
 
             }
 
