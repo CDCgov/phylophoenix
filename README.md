@@ -17,8 +17,18 @@
 
  ![GitHub Clones](https://img.shields.io/github/downloads/cdcgov/phoenix/total.svg?style=social&logo=github&label=Clones-)  --->
 
-[![Custom Badge](https://img.shields.io/badge/GitHub-%F0%9F%94%A5%F0%9F%8C%BF%F0%9F%90%A6%F0%9F%94%A5%20GitHub%20Clones%3A%2011-blue?logo=GitHub&style=for-the-badge&logoColor=black&label=%20&labelColor=white&color=blue&style=flat-square)](https://github.com/)  
+[![Custom Badge](https://img.shields.io/badge/GitHub-%F0%9F%94%A5%F0%9F%8C%BF%F0%9F%90%A6%F0%9F%94%A5%20GitHub%20Clones%3A%202118-blue?logo=GitHub&style=for-the-badge&logoColor=black&label=%20&labelColor=white&color=blue&style=flat-square)](https://github.com/)  
 
+# SHARE IT Act Compliance  
+Org: CDC/NCEZID/DHQP/CEMB  
+Contact Email: ncezid_shareit@cdc.gov  
+
+Description: PhyloPHoeNIx is a Nextflow-based bioinformatics pipeline developed by the CDC's Division of Healthcare Quality Promotion to support genomic surveillance of antimicrobial-resistant, healthcare-associated pathogens. Designed to work alongside its companion pipeline PHoeNIx, it automates outbreak analysis, builds SNV matrices and phylogenetic trees, and reports core genome coverage to help public health labs track pathogen relatedness. Its containerized design ensures easy installation and reproducible results, with outputs compatible with visualization tools like Microreact.
+
+Languages: Python, Nextflow, Shell, Other
+
+Purpose of the SHARE IT Act:
+The SHARE IT Act is a federal law that says government agencies like CDC must be more transparent about the software we build using federal funds. It CDC publishes a public list that describes what custom-developed software we’ve created. This helps other agencies know what exists so we’re not reinventing the wheel.
 
 ## Introduction
 
@@ -35,13 +45,15 @@ The pipeline is built using [Nextflow](https://www.nextflow.io), a workflow tool
 
 ## Quick Start
 
-1. Install [`Nextflow`](https://www.nextflow.io/docs/latest/getstarted.html#installation) (`>=22.10.1`)
+1. Install [`Nextflow`](https://www.nextflow.io/docs/latest/getstarted.html#installation) (`>=25.10.2`)
 
 2. Install any of [`Docker`](https://docs.docker.com/engine/installation/) or [`Singularity`](https://www.sylabs.io/guides/3.0/user-guide/) (you can follow [this tutorial](https://singularity-tutorial.github.io/01-installation/)) for full pipeline reproducibility.
 
-3. Download the pipeline and test it on a minimal dataset with a single command:
+3. Download the pipeline and test it on a minimal dataset as shown below:
 
    ```bash
+   sh download_testdata.sh
+
    nextflow run cdcgov/phylophoenix -profile test,singularity --outdir <OUTDIR>
    ```
    Note that some form of configuration will be needed so that Nextflow knows how to fetch the required software. This is usually done in the form of a config profile (`YOURPROFILE` in the example command above). You can chain multiple config profiles in a comma-separated string.
@@ -142,9 +154,11 @@ The core of PhyloPHoeNIx is a pipleline originally developed by @apetkau (Aaron 
 
 We thank the following people for their extensive assistance and test in the development of this pipeline:
 
-* Nick Vlachos [@nvlachos](https://github.com/nvlachos)
-* Thao Masters [@masters-thao](https://github.com/masters-thao)
-* Alyssa Kent [@Alyssa-Kent](https://github.com/Alyssa-Kent)
+* Jill V. Hagey, MS, PhD [@jvhagey](jvhagey.github.io)
+* Alyssa Kent, MS, PhD [@Alyssa-Kent](https://github.com/Alyssa-Kent)
+* Thao Masters, PhD [@masters-thao](https://github.com/masters-thao)
+* Anusha Reddy Ginni, MS [@aginnimb](https://github.com/aginnimb)
+* Nick Vlachos, MS [@nvlachos](https://github.com/nvlachos)
 
 Add beta testers here....
 

@@ -9,67 +9,85 @@ include { REMOVE_FAILURES    } from '../../modules/local/remove_failures'
 workflow GRIPHIN_WORKFLOW {
     take:
         input_samplesheet_path // channel: tuple val(meta), path('*.json'): FASTP_TRIMD.out.json --> PHOENIX_EXQC.out.paired_trmd_json
-        indir
+        blind_list             // path: path to a blind list file (optional)
+        version                // manifest version of the workflow
+        ardb                   // path: path to ARDB database for GRiPHin
+        prefix                 // string: prefix for output files and directories
+        coverage               // integer: minimum coverage value for GRIPHin
+        force                  // boolean: if true will not remove samples that fail PHX specs
+        bldb                   // path: path to BLDB database for GRiPHin
+        busco_bool             // boolean: indicates if busco was run in the PHoeNIx workflow
+        shigapass_bool         // channel: indicates if shigapass is detected in the input samples
+        griphin_inputs         // channel: all input files for GRiPHin
+        orginal_phx_version    // string: original PHoenix version used to generate the input files
+        outdir
+        by_st_param            //params.by_st
+        secondary_mlst_param   //params.secondary_mlst
+        combine_complex_param  //params.combine_complex
+
 
     main:
         ch_versions = Channel.empty() // Used to collect the software versions
 
         // Check if input samplesheet or input directory has passed, then check if a control list was passed
         // we have to do all this to make sure paths can be relative
-        if (params.input != null) { // if samplesheet is passed
-            if (params.blind_list != null){ // if control list is passed allow it to be relative
-                // Allow control list to be relative
-                blind_path = Channel.fromPath(params.blind_list, relative: true)
-                // Create report
-                GRIPHIN (
-                    input_samplesheet_path, params.ardb, params.prefix, blind_path, params.coverage, params.cdc
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-            } else {
-                // Create report
-                GRIPHIN (
-                    input_samplesheet_path, params.ardb, params.prefix, [], params.coverage, params.cdc
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-            }
-            directory_samplesheet = GRIPHIN.out.griphin_samplesheet
-        } else { // if no samplesheet is passed the we will make one
-            // allow input directory to be relative
-            inputdir_path = Channel.fromPath(indir, relative: true, type: 'dir') // this same path is needed to make the samplesheet
+        if (blind_list != null){ // if control list is passed allow it to be relative
 
-            // Create samplesheet - while GRiPHin can create a samplesheet for you, due to nextflow/softlinks etc this results in failures at the create_meta step. 
-            // so we are just using another process to create the samplesheet :)
-            // sample_id,/path/sample_folder
-            CREATE_SAMPLESHEET (
-                inputdir_path
+            // Allow control list to be relative
+            blind_path = Channel.fromPath(blind_list, relative: true)
+
+            //create GRiPHin report
+            GRIPHIN (
+                ardb,                                         // path(db)
+                input_samplesheet_path,                       // path(original_samplesheet)
+                griphin_inputs.map{ it.meta }.collect(),     // val(metas): list of [id:<sid>, filenames:[...]]
+                griphin_inputs.map{ it.files }.collect(),    // path(griphin_files): flattened file list
+                outdir,                                       // path(outdir): full_project_id
+                version,                                      // val(phx_version)
+                coverage,                                     // val(coverage)
+                busco_bool,                                   // val(entry): busco_boolean
+                shigapass_bool,                               // val(shigapass_detected)
+                false,                                        // val(centar_detected)
+                bldb,                                         // path(bldb)
+                true,                                         // val(filter_var)
+                false,                                         // val(dont_publish) --> need it for the naming of the output files
+                blind_path,                                   // path(blind_list)
+                orginal_phx_version                           // val(old_phx_version)
             )
-            ch_versions = ch_versions.mix(CREATE_SAMPLESHEET.out.versions)
+            ch_versions = ch_versions.mix(GRIPHIN.out.versions)
 
-            if (params.blind_list != null){ // if control list is passed allow it to be relative
-                // Allow control list to be relative
-                blind_path = Channel.fromPath(params.blind_list, relative: true)
-                // Create report
-                GRIPHIN (
-                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, blind_path, params.coverage, params.cdc
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-            } else {
-                // Create report
-                GRIPHIN (
-                    CREATE_SAMPLESHEET.out.samplesheet, params.ardb, params.prefix, [], params.coverage, params.cdc
-                )
-                ch_versions = ch_versions.mix(GRIPHIN.out.versions)
-            }
-            directory_samplesheet = CREATE_SAMPLESHEET.out.samplesheet
+        } else {
+
+            //create GRiPHin report
+            GRIPHIN (
+                ardb,                                         // path(db)
+                input_samplesheet_path,                       // path(original_samplesheet)
+                griphin_inputs.map{ it.meta }.collect(),  // val(metas): list of [id:<sid>, filenames:[...]]
+                griphin_inputs.map{ it.files }.collect(), // path(griphin_files): flattened file list
+                outdir,                                       // path(outdir): full_project_id
+                version,                                      // val(phx_version)
+                coverage,                                     // val(coverage)
+                busco_bool,                                   // val(entry): busco_boolean
+                shigapass_bool,                               // val(shigapass_detected)
+                false,                                        // val(centar_detected)
+                bldb,                                         // path(bldb)
+                true,                                         // val(filter_var)
+                false,                                        // val(dont_publish) --> need it for the naming of the output files
+                [],                                           // path(blind_list)
+                orginal_phx_version                           // val(old_phx_version)
+            )
+            ch_versions = ch_versions.mix(GRIPHIN.out.versions)
         }
+        directory_samplesheet = GRIPHIN.out.converted_samplesheet
 
-        // Identify samples failed PHX specs
+        // Identify samples failed PHX specs and remove them from the samplesheet. 
+        // Also creates files to check if running --by_ST will be redundant - used for filtering in phylophoenix.nf 
         REMOVE_FAILURES(
-            GRIPHIN.out.griphin_tsv_report, directory_samplesheet
+            GRIPHIN.out.griphin_tsv_report, directory_samplesheet, by_st_param, secondary_mlst_param, combine_complex_param
         )
         ch_versions = ch_versions.mix(REMOVE_FAILURES.out.versions)
 
-        if (params.force==false){
+        if (force==false) {
             final_directory_samplesheet = REMOVE_FAILURES.out.cleaned_dir_samplesheet
         } else {
             final_directory_samplesheet = directory_samplesheet
@@ -80,8 +98,11 @@ workflow GRIPHIN_WORKFLOW {
         //filtered_reads = reads.map{reads -> [ reads ] }.combine(ids_to_remove_ch).map{reads, ids_to_remove_ch -> filter_reads(reads, ids_to_remove_ch) }.flatten()
 
     emit:
-        griphin_report        = GRIPHIN.out.griphin_report
-        griphin_tsv_report    = GRIPHIN.out.griphin_tsv_report  
-        directory_samplesheet = final_directory_samplesheet
-        versions              = ch_versions // channel: [ versions.yml ]
+        griphin_report            = GRIPHIN.out.griphin_excel_report      // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.xlsx') ]
+        griphin_tsv_report        = GRIPHIN.out.griphin_tsv_report  // channel: [ val(meta), path('SNVPhyl_Griphin_Summary.tsv') ]
+        directory_samplesheet     = final_directory_samplesheet     // channel: [ val(meta), path('Directory_samplesheet.csv') ]
+        redundant_taxa_file       = REMOVE_FAILURES.out.redundant_taxa_file
+        insufficient_samples_file = REMOVE_FAILURES.out.insufficient_samples_file
+        by_st_eligible_file       = REMOVE_FAILURES.out.by_st_eligible_file
+        versions                  = ch_versions                     // channel: [ versions.yml ]
 }

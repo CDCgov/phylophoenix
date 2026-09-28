@@ -12,10 +12,11 @@ include { SPLIT_METADATA_BY_ST } from '../../modules/local/split_metadata_by_st'
 
 workflow CREATE_META {
     take:
-        samplesheets     // headers: id,seq_type,assembly_1,assembly_2
-        snv_samplesheets // headers: id,directory
+        samplesheets     // headers: id,seq_type,taxa,assembly_1,assembly_2
+        snv_samplesheets // headers: id,directory,taxa
         metadata
         split_by_st  // true or false
+        reads
 
     main: 
         ch_versions = Channel.empty() // Used to collect the software versions
@@ -29,12 +30,20 @@ workflow CREATE_META {
         st_samplesheets = samplesheets.flatten()
             .map{ add_st_to_samplesheet(it, "st") }
 
-        // header will be --> id,directory
+        // Get meta.seq_type into reads channel. First, reshape st_scaffolds to extract just the meta information we need
+        st_meta = st_samplesheets.map{ meta, samplesheet -> samplesheet}.flatten().splitCsv( header:true, sep:',' )
+                                .map{ row -> [ row.sample, row.seq_type ] }
+        // Join reads with st_meta based on meta.id
+        st_reads = reads.map{ meta, fastqs -> [ meta.id, fastqs ] } // Add meta.id as key
+            .combine(st_meta)
+            .filter{ id, fastqs, sample, seq_type -> sample.contains(id) } // Check if sample string contains the id
+            .map{ id, fastqs, sample, seq_type ->  [ [id:id, seq_type: seq_type], fastqs ]  }.unique() // Reconstruct with both meta fields
+
         st_snv_samplesheets = snv_samplesheets.flatten()
             .map{ add_st_to_samplesheet(it, "st_snv") }
 
         if (params.metadata!=null) {
-            if (split_by_st==true) {
+            //if (split_by_st==true) {
                 split_metadata_ch = st_snv_samplesheets.combine(metadata)
                 //split metadata file by st
                 SPLIT_METADATA_BY_ST (
@@ -42,16 +51,17 @@ workflow CREATE_META {
                 )
                 ch_versions = ch_versions.mix(SPLIT_METADATA_BY_ST.out.versions)
                 split_metadata = SPLIT_METADATA_BY_ST.out.split_metadata
-            } else {
+            /*} else {
                 // when All_Isolates are running through don't split then just pass it and move along
                 split_metadata = metadata.map{ it -> add_meta(it) }
-            }
+            }*/
         } else {
             split_metadata = []
         }
 
     emit:
         st_scaffolds        = st_scaffolds   // channel: [ val(meta), [ scaffolds_1, scaffolds_2 ] ]
+        st_reads            = st_reads          // channel: [ val(meta), [ reads_1, reads_2 ] ]
         st_samplesheets     = st_samplesheets // channel: [ seq_type, samplesheet ]
         st_snv_samplesheets = st_snv_samplesheets // channel: [ seq_type, samplesheet ]
         split_metadata      = split_metadata
@@ -103,7 +113,13 @@ def add_st_to_samplesheet(samplesheet, samplesheet_type) {
         def pre_seq_type = samplesheet.toString().replaceAll("_samplesheet.csv", "") // remove _samplesheet.csv from path 
         def seq_type = pre_seq_type.toString().split('/')[-1] // get the last string after the last backslash
         def meta = [:]
-        meta.seq_type = seq_type
+        if (seq_type.startsWith("All_")) {
+            meta.seq_type = seq_type // get only the seq_type from the full string
+            //meta.taxa = pre_seq_type.toString().split('/')[-1].replaceAll("All_", "").replaceAll("_Isolates", "") // get taxa from seq_type
+        } else {
+            meta.seq_type = seq_type.split('_')[-1] // get only the seq_type from the full string
+            //meta.taxa = pre_seq_type.toString().split('/')[-1].replaceFirst(/_[^_]*$/, '')  // get taxa from seq_type
+        }
         def new_samplesheet = [ meta, file(samplesheet) ]
         return new_samplesheet
     }
@@ -112,7 +128,13 @@ def add_st_to_samplesheet(samplesheet, samplesheet_type) {
         pre_seq_type = pre_seq_type.toString().replaceAll("_samplesheet_pre.csv", "") // remove _samplesheet.csv from path
         def seq_type = pre_seq_type.toString().split('/')[-1] // get the last string after the last backslash
         def meta = [:]
-        meta.seq_type = seq_type
+        //if (seq_type.startsWith("All_")) {
+        meta.seq_type = seq_type // get only the seq_type from the full string
+            //meta.taxa = pre_seq_type.toString().split('/')[-1].replaceAll("All_", "").replaceAll("_Isolates", "") // get taxa from seq_type
+        //} else {
+            //meta.seq_type = seq_type.split('_')[-1] // get only the seq_type from the full string
+            //meta.taxa = pre_seq_type.toString().split('/')[-1].replaceFirst(/_[^_]*$/, '')  // get taxa from seq_type
+        //}
         def new_samplesheet = [ meta, file(samplesheet) ]
         return new_samplesheet
     }
@@ -122,7 +144,9 @@ def add_meta(metadata) {
     // create meta map
     def meta = [:]
     //meta.id = row.sample
+    //metadata = NY_isolate_metadata.txt
     meta.seq_type = "All_Isolates"
+    //meta.taxa = 
     return [meta, metadata]
 }
 
@@ -132,6 +156,7 @@ def create_assembly_channel(LinkedHashMap row) {
     def meta = [:]
     meta.id = row.sample
     meta.seq_type = row.seq_type
+    //meta.taxa = row.taxa
 
     // add path(s) of the assembly file(s) to the meta map
     def assembly_meta = []
@@ -144,44 +169,3 @@ def create_assembly_channel(LinkedHashMap row) {
     assembly_meta = [ meta, file(row.assembly_1), file(row.assembly_2) ]
     return assembly_meta
 }
-
-
-/*def create_st_tuples(input) {
-    // the output of this function is to get a tuple like this:
-    // [[[id:sample1, st:ST1], $PATH/sample1.filtered.scaffolds.fa.gz], [id:sample2, st:ST1], $PATH/sample2.filtered.scaffolds.fa.gz], [[id:sample3, st:ST2], $PATH/sample3.filtered.scaffolds.fa.gz], [id:sample4, st:ST2], $PATH/sample4.filtered.scaffolds.fa.gz]]
-    //println(input)
-    def starting_st = "ST" // initializing st
-    count = 0
-    sample_num = 1
-    for (item in input) { // loop through each st type
-        if ( count == 0 || count % 2 == 0) { // even number or zero it will be meta information, odd number will be the sample info 
-            // get the current st
-            new_st = item.st
-            if (starting_st == new_st) { // if the new st is the same as the last st
-                // add it to the tuple that was created before
-                new_st_tuple.add(item)
-                new_st_tuple.add(input.get(sample_num)[0])
-            } else {
-                // if the incoming st is a new one
-                if (count == 0 ) { // check if this is the first time through and create an empty list if so
-                    final_tuple = []
-                } else { // if this is not the first time through add the completed tuple to the final list
-                    // add the last tuple the final tuple then
-                    final_tuple.add(new_st_tuple)
-                }
-                // set new st type
-                starting_st = new_st
-                // create a new tuble
-                new_st_tuple = [new_st]
-                // add current sample to this table
-                new_st_tuple.add(item)
-                new_st_tuple.add(input.get(sample_num)[0])
-            }
-            sample_num = sample_num + 2
-            count = count + 1
-        } else { // if count is an even number then only just add to variables
-            count = count + 1
-        }
-    }
-    return final_tuple
-}*/

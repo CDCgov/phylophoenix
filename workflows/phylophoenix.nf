@@ -18,6 +18,8 @@ WorkflowPhylophoenix.initialise(params, log)
 //
 // Modules for running all vs all
 //
+
+include { XLSX_TO_TSV                  } from '../modules/local/excel_to_tsv'
 include { GRIPHIN_WORKFLOW             } from '../subworkflows/local/griphin_workflow'
 include { GET_COMPARISONS              } from '../modules/local/create_comparisons'
 include { MASH_DIST    as MASH_DIST    } from '../modules/local/mash_distance'
@@ -32,6 +34,7 @@ include { COMBINE_GRIPHIN_SNVPHYL      } from '../modules/local/combine_griphin_
 //
 // Modules for running snvphyl by st
 //
+
 include { GET_SEQUENCE_TYPES                                           } from '../modules/local/get_sequence_types'
 include { CREATE_META               as CREATE_META_BY_ST               } from '../subworkflows/local/create_meta'
 include { MASH_DIST                 as MASH_DIST_BY_ST                 } from '../modules/local/mash_distance'
@@ -43,15 +46,15 @@ include { CLEAN_AND_CREATE_METADATA as CLEAN_AND_CREATE_METADATA_BY_ST } from '.
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    IMPORT NF-CORE MODULES/SUBWORKFLOWS
+    IMPORT MODULES/SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+include { CREATE_INPUT_CHANNELS       } from '../subworkflows/local/create_input_channels'
 
 //
 // MODULE: Installed directly from nf-core/modules
 //
-include { FASTQC                      } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                     } from '../modules/nf-core/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoftwareversions/main'
 
 /*
@@ -60,11 +63,57 @@ include { CUSTOM_DUMPSOFTWAREVERSIONS } from '../modules/nf-core/custom/dumpsoft
 ========================================================================================
 */
 
+// ANSI color codes for console warnings
+def ANSI_RED    = "\033[91m"
+def ANSI_YELLOW = "\033[93m"
+def ANSI_ORANGE = "\033[38;5;208m"
+def ANSI_PURPLE = "\033[38;5;135m"
+def ANSI_GREEN  = "\033[92m"
+def ANSI_RESET  = "\033[0m"
+
 def add_empty_ch(input_ch) {
     def meta_seq_type = input_ch[0]
     output_array = [ meta_seq_type, []]
     return output_array
 }
+
+def get_taxa_and_project_ID(input_ch){ 
+    def genus = ""
+    def species = ""
+    input_ch[1].eachLine { line ->
+        if (line.startsWith("G:")) {
+            def parts = line.split(":")[1].trim().split('\t')
+            genus = parts.size() > 1 ? parts[1] : parts[0]
+        } else if (line.startsWith("s:")) {
+            def parts = line.split(":")[1].trim().split('\t')
+            species = parts.size() > 1 ? parts[1] : parts[0]
+        }
+    }
+    //def clean_project_id = in_meta.project_id.replaceAll(/^['"]/, '').replaceAll(/['"]$/, '')
+    return [input_ch[0], "$genus", input_ch[2] ]
+}
+
+    /*     //input_samplesheet_path - channel: path('*.tsv','*.xlsx'): User input samplesheet
+        normalized_samplesheet_ch = input_samplesheet_path.first().map { file ->
+                if( file.name.toLowerCase().endsWith('.xlsx') ) { return [ 'xlsx', file ] }
+                else if( file.name.toLowerCase().endsWith('.tsv') ) { return [ 'tsv', file ] } 
+                else { error "Unsupported samplesheet type: ${file.name}" } }
+
+        normalized_samplesheet_ch.view()
+
+        // Branch based on file type
+        normalized_tsv_ch = normalized_samplesheet_ch.branch( xlsx:{ it[0] == 'xlsx' }, tsv:{ it[0] == 'tsv' } )
+
+        // Convert XLSX → TSV if needed (only runs if xlsx branch has data)
+        XLSX_TO_TSV (
+            normalized_tsv_ch.xlsx.map{ it[1] }
+        )
+        ch_versions = ch_versions.mix(XLSX_TO_TSV.out.versions)
+        
+        // Pass TSV through unchanged and merge with converted XLSX
+        final_tsv_ch = XLSX_TO_TSV.out.tsv_samplesheet.ifEmpty{ Channel.empty() }.mix(normalized_tsv_ch.tsv.map{ it[1] })
+        
+        */
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -72,35 +121,117 @@ def add_empty_ch(input_ch) {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// Info required for completion email and summary
-//def multiqc_report = []
+//Notes: Novel alleles handled in both get_st_types.py and remove_failures.py
 
 workflow PHYLOPHOENIX {
     take:
         input_samplesheet_path
-        indir
-        by_st
+        ch_versions
 
     main:
-        ch_versions = Channel.empty()
-
         // get geonames file into a channel. Coding it this way and not params so we can use a glob and not be verbose.
         geonames_ch = Channel.fromPath("${baseDir}/assets/databases/*_geolocation.txt.xz").collect()
+        // Allow outdir to be relative
+        outdir_path = Channel.fromPath(params.outdir, relative: true)
+        // Create channel for reference genome
+        ref_genome_ch = params.ref_genome ? Channel.fromPath(params.ref_genome, relative: true) : []
+        //ref_genome_ch = Channel.fromPath(ref_genome, relative: true).ifEmpty([])
+
+        // Create input channels for files we need to make griphin
+        CREATE_INPUT_CHANNELS (
+            // False is to say if centar is to be included when creating input channels
+            input_samplesheet_path,  false
+        )
+        ch_versions = ch_versions.mix(CREATE_INPUT_CHANNELS.out.versions)
+
+        //metadata check for correct columns in metadata file if provided - do they match they sample names in the samplesheet?
+
+        // Compute BUSCO boolean
+        project_files_ch = CREATE_INPUT_CHANNELS.out.griphin_tsv_ch.map{ meta, summary_line -> summary_line.readLines().first().contains('BUSCO')}.collect().unique()
+
+        has_busco_ch = project_files_ch.map{ it -> 
+            if (it.size() > 1) {
+                // More than one element -> mixed CDC/PHX, default to PHX (false)
+                System.err.println("WARNING: Mix of CDC_PHOENIX and PHOENIX in GRiPHins — defaulting to PHX.")
+                return false
+            } else if (it.size() == 1) {
+                // Single element: return that boolean value
+                return it[0]
+            }
+        }
+
+        // Determine if ShigaPass was run and if Shigella/Escherichia detected
+        shigapass_var_ch =  CREATE_INPUT_CHANNELS.out.griphin_tsv_ch.map{ meta, summary_line -> summary_line.readLines().first().contains('ShigaPass_Organism')}.collect().unique()
+        phx_version_ch =  CREATE_INPUT_CHANNELS.out.pipeline_info.map{ meta, pipeline_versions -> 
+            def line = pipeline_versions.readLines().find { it.contains('cdcgov/phoenix:') } 
+            line ? line.split(':')[1].trim() : null }
+
+        //create GRiPHin report channel
+        griphin_inputs_ch = Channel.empty()
+            .mix(
+                CREATE_INPUT_CHANNELS.out.fastp_total_qc,
+                CREATE_INPUT_CHANNELS.out.raw_stats,
+                CREATE_INPUT_CHANNELS.out.k2_trimd_bh_summary,
+                CREATE_INPUT_CHANNELS.out.k2_trimd_report,
+                CREATE_INPUT_CHANNELS.out.k2_wtasmbld_bh_summary,
+                CREATE_INPUT_CHANNELS.out.k2_wtasmbld_report,
+                CREATE_INPUT_CHANNELS.out.quast_report,
+                CREATE_INPUT_CHANNELS.out.fairy_outcome,
+                CREATE_INPUT_CHANNELS.out.combined_mlst,
+                CREATE_INPUT_CHANNELS.out.taxonomy,
+                CREATE_INPUT_CHANNELS.out.assembly_ratio,
+                CREATE_INPUT_CHANNELS.out.gc_content,
+                CREATE_INPUT_CHANNELS.out.gamma_ar,
+                CREATE_INPUT_CHANNELS.out.gamma_pf,
+                CREATE_INPUT_CHANNELS.out.gamma_hv,
+                CREATE_INPUT_CHANNELS.out.ani_best_hit,
+                CREATE_INPUT_CHANNELS.out.synopsis,
+                CREATE_INPUT_CHANNELS.out.shigapass,
+                CREATE_INPUT_CHANNELS.out.busco_short_summary,
+                CREATE_INPUT_CHANNELS.out.srst2_ar,
+            )
+            .groupTuple()
+            .map { meta, files ->
+                def cleaned = files.findAll { f ->
+                    def ok = f != null && (f instanceof java.nio.file.Path || f instanceof nextflow.file.FileHolder)
+                    if (!ok) println "WARNING [${meta.id}]: dropping invalid file entry: ${f}"
+                    ok
+                }
+
+                [
+                    meta: [ id: "${meta.id}", filenames: cleaned.collect { it.getName() } ],
+                    files: cleaned
+                ]
+            }
 
         // Create report
         GRIPHIN_WORKFLOW (
-            input_samplesheet_path, indir
+            input_samplesheet_path,
+            params.blind_list,
+            workflow.manifest.version,
+            params.ardb,
+            params.prefix,
+            params.coverage,
+            params.force,
+            params.bldb,
+            has_busco_ch,
+            shigapass_var_ch,
+            griphin_inputs_ch,
+            phx_version_ch,
+            outdir_path,
+            params.by_st,
+            params.secondary_mlst,
+            params.combine_complex
         )
         ch_versions = ch_versions.mix(GRIPHIN_WORKFLOW.out.versions)
 
-        // If you pass --no_all then samples will not be run all together
-        if (params.no_all==false) {
+        // If you pass --no_species then samples will not be run all together regardless of taxa
+        if (params.by_all==true || params.no_species==false) {
             // Allow outdir to be relative
             //outdir_path = Channel.fromPath(params.outdir, relative: true, type: 'dir')
-
             // Creates samplesheets with sampleid,seq_type,path_to_assembly
             GET_COMPARISONS (
-                GRIPHIN_WORKFLOW.out.directory_samplesheet
+                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_tsv_report, params.combine_complex, params.by_all, params.no_species
             )
             ch_versions = ch_versions.mix(GET_COMPARISONS.out.versions)
 
@@ -109,28 +240,49 @@ workflow PHYLOPHOENIX {
                 metadata  = Channel.fromPath(params.metadata, relative: true)
                 // creates channel: [ val(meta.id, meta.st), [ scaffolds_1, scaffolds_2 ] ]
                 CREATE_META (
-                    GET_COMPARISONS.out.samplesheet, GET_COMPARISONS.out.snv_samplesheet, metadata, false
+                    GET_COMPARISONS.out.samplesheet, GET_COMPARISONS.out.snv_samplesheet, metadata, false, CREATE_INPUT_CHANNELS.out.reads
                 )
+                ch_versions = ch_versions.mix(CREATE_META.out.versions)
             } else {
                 // creates channel: [ val(meta.id, meta.st), [ scaffolds_1, scaffolds_2 ] ]
                 CREATE_META (
-                    GET_COMPARISONS.out.samplesheet, GET_COMPARISONS.out.snv_samplesheet, null, false
+                    GET_COMPARISONS.out.samplesheet, GET_COMPARISONS.out.snv_samplesheet, null, false, CREATE_INPUT_CHANNELS.out.reads
                 )
+                ch_versions = ch_versions.mix(CREATE_META.out.versions)
             }
 
-            // Run Mash on groups of samples by seq type
-            MASH_DIST (
-                CREATE_META.out.st_scaffolds
-            )
-            ch_versions = ch_versions.mix(MASH_DIST.out.versions)
+            // In Groovy an empty List evaluates to false in a boolean context, and a Path object evaluates to true. 
+            def dist_ch
+            if (!ref_genome_ch) {
 
-            // Creating channel [ ST, [distance_1, distance_2] ]
-            dist_ch = MASH_DIST.out.dist.map{ meta, dist -> [ dist ] }.collect() // drop meta and collect all distance files
-            centroid_ch = dist_ch.map{ mash_dist -> 
+                // Run Mash on groups of samples by seq type
+                MASH_DIST (
+                    CREATE_META.out.st_scaffolds
+                )
+                ch_versions = ch_versions.mix(MASH_DIST.out.versions)
+
+                // Creating channel [ ST, [distance_1, distance_2] ]
+                dist_ch = MASH_DIST.out.dist.map { meta, file -> [meta.seq_type, meta, file] } // Add seq_type as key
+                    .groupTuple() // Group by seq_type
+                    .map { seq_type, old_meta, files -> 
+                            def meta = [:]
+                            meta.seq_type = old_meta.seq_type.unique()[0]
+                            return tuple ( meta, [] , files) } // Restructure to orginal format
+                centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
+
+            } else {
+
+                // Get meta from scaffolds channel and combine with ref genome channel to pass to GET_CENTROID
+                dist_ch = CREATE_META.out.st_scaffolds.map { items -> 
                         def meta = [:]
-                        meta.seq_type = "All_Isolates"
-                        return tuple (meta , mash_dist)} // add back "All_Isolates" as the meta value
-            .combine(GRIPHIN_WORKFLOW.out.directory_samplesheet) // Add samplesheet to all mash distance channels
+                        meta.seq_type = items[0].seq_type
+                        def files = items[1..-1]
+                        return meta }.unique()
+                    .combine(ref_genome_ch).map{meta, ref_genome -> [[seq_type: meta.seq_type], ref_genome, []]}
+
+            }
+
+            centroid_ch = dist_ch.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
 
             // Take in all mash distance files then use the samplesheet to return the centroid assembly
             // Get centroid, by calculating the average mash distance
@@ -139,40 +291,68 @@ workflow PHYLOPHOENIX {
             )
             ch_versions = ch_versions.mix(GET_CENTROID.out.versions)
 
+            // Bring in centroid into channel
+            asset_prep_ch = GET_CENTROID.out.centroid_path.splitCsv( header:false, sep:',' ).map{meta, list -> 
+                def scaffold = list[0] // extract the file from the list
+                return [meta, scaffold]}.join(CREATE_META.out.st_snv_samplesheets, by: [0,0])
+
+            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
+            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
+            centroid_id_ch = GET_CENTROID.out.centroid_info.map{ meta, centroid_file ->
+                            def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
+                            tuple(meta.seq_type, centroid_id)
+                        }
+
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             // also unzip the geoname files for cleaning metadata file. 
             ASSET_PREP (
-                // Bring in centroid into channel
-                GET_CENTROID.out.centroid_path.splitCsv( header:false, sep:',' ).map{meta, list -> 
-                def scaffold = list[0] // extract the file from the list
-                return [meta, scaffold]},  // get into format [[meta], scaffold]
-                geonames_ch, CREATE_META.out.st_snv_samplesheets
+                asset_prep_ch, geonames_ch
             )
             ch_versions = ch_versions.mix(ASSET_PREP.out.versions)
 
             // Check and correct the metadata file if it was passed
             if (params.metadata!=null) {
+                //get files in the same tuple for cleaner coding
+                assets_ch = ASSET_PREP.out.unzipped_geodata.map{africa, americas, eu, other, sea, us -> [[africa, americas, eu, other, sea, us]]}
+                //combine files in channels so they aren't comsumed.
+                //we need to have .first() as there might be more coming out of that channel than needed - i.e. not all STs continue since there is a min number of isolates required to continue.
+                metadata_ch = CREATE_META.out.split_metadata.combine(GRIPHIN_WORKFLOW.out.griphin_tsv_report).combine(assets_ch.first())
+                // clean up metadata file, add geolocation information
                 CLEAN_AND_CREATE_METADATA (
-                    CREATE_META.out.split_metadata, GRIPHIN_WORKFLOW.out.griphin_tsv_report, ASSET_PREP.out.unzipped_geodata
+                    metadata_ch.map{meta, metadata, griphin, assets -> [meta, metadata]},
+                    metadata_ch.map{meta, metadata, griphin, assets -> [griphin]},
+                    metadata_ch.map{meta, metadata, griphin, assets -> assets},
+                    params.bldb
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA.out.versions)
             }
 
-            // Make SNVPHYL channel by joining by seq type
-            all_ch = ASSET_PREP.out.st_snv_samplesheets.join(ASSET_PREP.out.unzipped_fasta, by: [0])
+            filtered_reads_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
+                .combine(centroid_id_ch, by: 0)
+                .filter{ seq_type, sample_id, fastqs, centroid_id -> sample_id != centroid_id }
+                .map{ seq_type, sample_id, fastqs, centroid_id -> tuple([seq_type: seq_type, id: sample_id], fastqs)}
+
+            /*all_ch = CREATE_META.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, fastqs, meta.id) }
+                .combine(GET_CENTROID.out.centroid_info.map { meta, unzipped_fasta -> tuple(meta.seq_type, unzipped_fasta) }, by: 0)
+                .map{ seq_type, fastqs, id, unzipped_fasta -> tuple([seq_type: seq_type, id: id], fastqs, unzipped_fasta)}*/
 
             // Run snvphyl on each st type on its own input
             SNVPHYL (
-                all_ch.map{ seq_type, samplesheet, unzipped_fasta -> [seq_type, samplesheet]}, all_ch.map{ seq_type, samplesheet, unzipped_fasta -> [seq_type, unzipped_fasta] } // reference
+                filtered_reads_ch,
+                ASSET_PREP.out.unzipped_fasta,
+                params.window_size
             )
             ch_versions = ch_versions.mix(SNVPHYL.out.versions)
 
             if (params.metadata!=null) {
-                final_output_ch = GET_CENTROID.out.centroid_info.join(SNVPHYL.out.phylogeneticTree, by: [0]).join(SNVPHYL.out.snvMatrix, by: [0]).join(CLEAN_AND_CREATE_METADATA.out.updated_metadata, by: [0])
+                final_output_ch = GET_CENTROID.out.centroid_info.join(SNVPHYL.out.phylogeneticTree, by: [0], remainder: true).join(SNVPHYL.out.snvMatrix, by: [0]).join(CLEAN_AND_CREATE_METADATA.out.updated_metadata, by: [0])
+                                    .map { meta, centroid, phylo, matrix, empty -> tuple(meta, centroid, phylo ?: [], matrix, empty) }
             } else {
                 // create empty channel as for CLEAN_AND_CREATE_METADATA that wasn't run and is required for the RENAME_REF_IN_OUTPUT module
                 empty_ch = SNVPHYL.out.snvMatrix.map{ it -> add_empty_ch(it) }
-                final_output_ch = GET_CENTROID.out.centroid_info.join(SNVPHYL.out.phylogeneticTree, by: [0]).join(SNVPHYL.out.snvMatrix, by: [0]).join(empty_ch, by: [0])
+                //.map{ items -> items.size() > 1 ? items.flatten() : items}
+                final_output_ch = GET_CENTROID.out.centroid_info.join(SNVPHYL.out.phylogeneticTree, by: [0], remainder: true).join(SNVPHYL.out.snvMatrix, by: [0]).join(empty_ch, by: [0])
+                                    .map { meta, centroid, phylo, matrix, empty -> tuple(meta, centroid, phylo ?: [], matrix, empty) }
             }
 
             // Rename reference to actual sample name
@@ -181,35 +361,96 @@ workflow PHYLOPHOENIX {
             )
             ch_versions = ch_versions.mix(RENAME_REF_IN_OUTPUT.out.versions)
 
-       }
+        }
 
         // If you pass --by_st then samples will be broken up by st type and SNVPhyl run on each st on its own
-        if (by_st==true) {
+        if (params.by_st==true ) {
+
+            // Two exclusion reasons, tracked separately since they need different treatment depending on whether an all-samples run also exists (--no_species).
+            // First, we will confirm this won't duplicate running all samples together by unique taxa. Convert the file into a list of strings, e.g. ["Klebsiella_oxytoca_ST19", "Klebsiella_pneumoniae_ST258", ...]
+            redundant_taxa_ch = GRIPHIN_WORKFLOW.out.redundant_taxa_file.map { file -> file.readLines().findAll { it.trim() } }.first()
+            insufficient_samples_ch = GRIPHIN_WORKFLOW.out.insufficient_samples_file.map { file -> file.readLines().findAll { it.trim() } }.first()
+            by_st_eligible_ch = GRIPHIN_WORKFLOW.out.by_st_eligible_file.map { file -> file.text.trim() == "true" }.first()
+
+            def gated_directory_samplesheet_ch
+            def exclude_list_ch
+            if (params.no_species==true) {
+                // No all-samples run exists here, so single-ST taxa are NOT redundant -- by-ST is the only place these samples will ever be analyzed, so they must run. 
+                // Only exclude combos that are genuinely infeasible (fewer than 2 passing samples).
+                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
+                exclude_list_ch = insufficient_samples_ch
+
+                insufficient_samples_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}WARNING: --no_species was passed, so the following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples (not enough for a meaningful comparison), and there is no all-samples run to otherwise cover them -- these samples will not appear in any SNVPhyl comparison: ${it}. ${ANSI_RESET}" }
+                // Note: taxa with only one ST are intentionally NOT excluded here, since there's no all-samples run for them to be redundant with.
+                redundant_taxa_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_PURPLE}NOTE: --no_species was passed, so the following taxa/ST combinations have only one ST for their taxa but will still run by-ST, since there is no all-samples run to cover them instead: ${it}. ${ANSI_RESET}" }
+
+            } else {
+
+                // An all-samples run exists, so gate the whole by-ST section on whether anything is actually eligible (not redundant AND has enough samples)
+                // If nothing qualifies, by-ST would add no value beyond the all-samples run and is skipped entirely.Build a boolean-like gate channel: emits directory_samplesheet only if the list is empty
+                gated_directory_samplesheet_ch = GRIPHIN_WORKFLOW.out.directory_samplesheet
+                    .combine(by_st_eligible_ch)
+                    .filter{ samplesheet, eligible -> eligible }
+                    .map{ samplesheet, eligible -> samplesheet }
+                // Combine both exclusion reasons for filtering seq_types out of the by-ST run below.
+                exclude_list_ch = redundant_taxa_ch.map{ list -> [list] }.combine(insufficient_samples_ch.map{ list -> [list] }).map{ redundant_taxa, insufficient_samples -> redundant_taxa + insufficient_samples }
+                // Print out details of what is being filtered out.
+                redundant_taxa_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}The following taxa/ST combinations have only one ST for their taxa and will be excluded from the by-ST run, since it would be redundant with the all-samples run: ${it}. ${ANSI_RESET}" }
+                insufficient_samples_ch.view{ it -> it.isEmpty() ? null :
+                    "${ANSI_ORANGE}WARNING: The following taxa/ST combinations are being dropped from the by-ST run because they have fewer than 2 passing samples -- these samples are still covered by the all-samples run, but will not appear in any by-ST comparison: ${it}. ${ANSI_RESET}" }
+                by_st_eligible_ch.view{ eligible -> eligible ? null :
+                    "${ANSI_ORANGE}WARNING: No taxa/ST combination has more than one ST and at least 2 passing samples -- skipping the by-ST section entirely (all samples are still covered by the all-samples run). ${ANSI_RESET}" }
+
+            }
 
             // Creates samplesheets with sample,seq_type,path_to_assembly
-            GET_SEQUENCE_TYPES (
-                GRIPHIN_WORKFLOW.out.directory_samplesheet, GRIPHIN_WORKFLOW.out.griphin_report
-            )
-            ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+            if (params.blind_list != null){ // if control list is passed allow it to be relative
+                // Allow control list to be relative
+                blind_path = Channel.fromPath(params.blind_list, relative: true)
+                // get sequence types with a blind list
+                GET_SEQUENCE_TYPES (
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, blind_path, params.secondary_mlst, params.combine_complex
+                )
+                ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+            } else {
+                // get sequence types without a blind list
+                GET_SEQUENCE_TYPES (
+                    gated_directory_samplesheet_ch, GRIPHIN_WORKFLOW.out.griphin_report, [], params.secondary_mlst, params.combine_complex
+                )
+                ch_versions = ch_versions.mix(GET_SEQUENCE_TYPES.out.versions)
+            }
 
             if (params.metadata!=null) {
                 // get metadata into channel
                 metadata  = Channel.fromPath(params.metadata, relative: true)
-
                 // creates channel: [ val(meta.id, meta.st), [ scaffolds_1, scaffolds_2 ] ]
                 CREATE_META_BY_ST (
-                    GET_SEQUENCE_TYPES.out.st_samplesheets, GET_SEQUENCE_TYPES.out.st_snv_samplesheets, metadata, true
+                    GET_SEQUENCE_TYPES.out.st_samplesheets, GET_SEQUENCE_TYPES.out.st_snv_samplesheets, metadata, true, CREATE_INPUT_CHANNELS.out.reads
                 )
             } else {
                 // creates channel: [ val(meta.id, meta.st), [ scaffolds_1, scaffolds_2 ] ]
                 CREATE_META_BY_ST (
-                    GET_SEQUENCE_TYPES.out.st_samplesheets, GET_SEQUENCE_TYPES.out.st_snv_samplesheets, [], false
+                    GET_SEQUENCE_TYPES.out.st_samplesheets, GET_SEQUENCE_TYPES.out.st_snv_samplesheets, null, false, CREATE_INPUT_CHANNELS.out.reads
                 )
             }
 
+            // Filter out any seq_type in exclude_list_ch -- for no_species==true this only drops infeasible (<2 sample) combos; for no_species==false it drops both infeasible AND redundant combos.
+            filtered_st_scaffolds_ch = CREATE_META_BY_ST.out.st_scaffolds.map{items ->
+                                    def meta = items[0]
+                                    def scaffolds = items[1..-1]
+                                    return [meta, scaffolds]
+                                }
+                                .combine(exclude_list_ch.map{ list -> [list] })
+                                .filter{ meta, scaffolds, ex_list -> !ex_list.contains(meta.seq_type) }
+                                .map{ meta, scaffolds, ex_list -> [meta, *scaffolds] }
+
             // Run Mash on groups of samples by seq type
             MASH_DIST_BY_ST (
-                CREATE_META_BY_ST.out.st_scaffolds
+                //CREATE_META_BY_ST.out.st_scaffolds
+                filtered_st_scaffolds_ch
             )
             ch_versions = ch_versions.mix(MASH_DIST_BY_ST.out.versions)
 
@@ -221,7 +462,8 @@ workflow PHYLOPHOENIX {
                 .map{meta_old, mash_dists -> 
                     def meta = [:]
                     meta.seq_type = meta_old
-                    return tuple( meta, mash_dists)} // Now returns [[meta.seq_type], [ distance_1, distance_2 ]]
+                    return tuple( meta, [], mash_dists)} // Now returns [[meta.seq_type], [ distance_1, distance_2 ]]
+            // add [] at end for ref_genome, will have to change to allow this to work with --by_st later. 
 
             // Add samplesheet to all mash distance channels
             centroid_st_ch =  st_mash_dists.combine(GRIPHIN_WORKFLOW.out.directory_samplesheet)
@@ -238,9 +480,10 @@ workflow PHYLOPHOENIX {
 
             // Unzip centroid assembly: SNVPhyl requires it unzipped
             ASSET_PREP_BY_ST (
-                asset_prep_ch.map{meta, centroid_path, st_snv_samplesheets -> [meta, centroid_path]}.splitCsv( header:false, sep:',' ), // Bring in centroid into channel
-                geonames_ch,
-                asset_prep_ch.map{meta, centroid_path, st_snv_samplesheets -> [meta, st_snv_samplesheets]}
+                asset_prep_ch.map { meta, centroid_path, st_snv_samplesheets -> [meta, centroid_path, st_snv_samplesheets] }
+                    .splitCsv(header: false, sep: ',', elem: 1)  // split only the centroid_path element (index 1)
+                    .map { meta, centroid_row, st_snv_samplesheets -> [meta, centroid_row, st_snv_samplesheets] },
+                    geonames_ch
             )
             ch_versions = ch_versions.mix(ASSET_PREP_BY_ST.out.versions)
 
@@ -255,27 +498,45 @@ workflow PHYLOPHOENIX {
                 CLEAN_AND_CREATE_METADATA_BY_ST (
                     metadata_ch.map{meta, metadata, griphin, assets -> [meta, metadata]},
                     metadata_ch.map{meta, metadata, griphin, assets -> [griphin]},
-                    metadata_ch.map{meta, metadata, griphin, assets -> assets}
+                    metadata_ch.map{meta, metadata, griphin, assets -> assets},
+                    params.bldb
                 )
                 ch_versions = ch_versions.mix(CLEAN_AND_CREATE_METADATA_BY_ST.out.versions)
             }
 
-            // Make SNVPHYL channel by joining by seq type
-            st_ch = ASSET_PREP_BY_ST.out.st_snv_samplesheets.join(ASSET_PREP_BY_ST.out.unzipped_fasta, by: [0])
+            /*st_ch = CREATE_META_BY_ST.out.st_reads.map{meta, fastqs -> tuple(meta.seq_type, fastqs, meta.id)}
+                .combine(ASSET_PREP_BY_ST.out.unzipped_fasta.map{meta, unzipped_fasta -> tuple(meta.seq_type, unzipped_fasta)}, by: 0)
+                .map{seq_type, fastqs, id, unzipped_fasta -> tuple([seq_type: seq_type, id: id], fastqs, unzipped_fasta)}*/
+
+            // Get the centroid id for each sample to filter out from the SNVPhyl run. 
+            // This is done by taking the centroid file, looking for the line that says "is set as the centroid" and extracting the sample name from that line.
+
+            centroid_id_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.map{ meta, centroid_file ->
+                                def centroid_id = (centroid_file.text =~ /(\S+) is set as the centroid/)[0][1]
+                                tuple(meta.seq_type, centroid_id)
+                            }
+
+            filtered_reads_by_st_ch = CREATE_META_BY_ST.out.st_reads.map{ meta, fastqs -> tuple(meta.seq_type, meta.id, fastqs) }
+                .combine(centroid_id_by_st_ch, by: 0)
+                .filter{ seq_type, sample_id, fastqs, centroid_id -> sample_id != centroid_id }
+                .map{ seq_type, sample_id, fastqs, centroid_id -> tuple([seq_type: seq_type, id: sample_id], fastqs)}
 
             // Run snvphyl on each st type on its own input
             SNVPHYL_BY_ST (
-                st_ch.map{ seq_type, samplesheet, unzipped_fasta -> [seq_type, samplesheet]}, 
-                st_ch.map{ seq_type, samplesheet, unzipped_fasta -> [seq_type, unzipped_fasta] } // reference
+                filtered_reads_by_st_ch,
+                ASSET_PREP_BY_ST.out.unzipped_fasta, // reference
+                params.window_size
             )
             ch_versions = ch_versions.mix(SNVPHYL_BY_ST.out.versions)
 
             if (params.metadata!=null) {
-                final_output_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.join(SNVPHYL_BY_ST.out.phylogeneticTree, by: [0]).join(SNVPHYL_BY_ST.out.snvMatrix, by: [0]).join(CLEAN_AND_CREATE_METADATA_BY_ST.out.updated_metadata, by: [0])
+                final_output_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.join(SNVPHYL_BY_ST.out.phylogeneticTree, by: [0], remainder: true).join(SNVPHYL_BY_ST.out.snvMatrix, by: [0]).join(CLEAN_AND_CREATE_METADATA_BY_ST.out.updated_metadata, by: [0])
+                                            .map { meta, centroid, phylo, matrix, empty -> tuple(meta, centroid, phylo ?: [], matrix, empty) }
             } else {
                 // create empty channel as for CLEAN_AND_CREATE_METADATA that wasn't run and is required for the RENAME_REF_IN_OUTPUT module
                 empty_ch = SNVPHYL_BY_ST.out.snvMatrix.map{ it -> add_empty_ch(it) }
-                final_output_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.join(SNVPHYL_BY_ST.out.phylogeneticTree, by: [0]).join(SNVPHYL_BY_ST.out.snvMatrix, by: [0]).join(empty_ch, by: [0])
+                final_output_by_st_ch = GET_CENTROID_BY_ST.out.centroid_info.join(SNVPHYL_BY_ST.out.phylogeneticTree, by: [0], remainder: true).join(SNVPHYL_BY_ST.out.snvMatrix, by: [0]).join(empty_ch, by: [0])
+                                            .map { meta, centroid, phylo, matrix, empty -> tuple(meta, centroid, phylo ?: [], matrix, empty) }
             }
 
             // Rename reference to actual sample name
@@ -285,26 +546,41 @@ workflow PHYLOPHOENIX {
             ch_versions = ch_versions.mix(RENAME_REF_IN_OUTPUT_BY_ST.out.versions)
         }
 
-        if (by_st==true) {
-            if (params.no_all==false) {
-                // collect files to add to griphin summary
-                snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect().combine(RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect())
-                vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().combine(SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect())
+        if (params.by_st==true) {
+            if (params.by_all==true || params.no_species==false) {
+                // collect files to add to griphin summary, flattening all + by-st results into one list
+                snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect().combine(RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect().ifEmpty([]))//.map{ all_matrices, by_st_matrices -> (all_matrices + by_st_matrices) }
+                vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().combine(SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect().ifEmpty([]))//.map { all_vcf2core, by_st_vcf2core -> (all_vcf2core + by_st_vcf2core) }
+                snvAlignment_ch = SNVPHYL.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect().combine(SNVPHYL_BY_ST.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect().ifEmpty([]))
             } else {
                 // collect files to add to griphin summary
                 snvMatrix_ch = RENAME_REF_IN_OUTPUT_BY_ST.out.snvMatrix.collect()
                 vcf2core_ch = SNVPHYL_BY_ST.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect()
+                snvAlignment_ch = SNVPHYL_BY_ST.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect()
             }
         } else {
             // collect files to add to griphin summary
-            snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix
-            vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }
+            snvMatrix_ch = RENAME_REF_IN_OUTPUT.out.snvMatrix.collect()
+            vcf2core_ch = SNVPHYL.out.vcf2core.map{ meta, vcf2core -> vcf2core }.collect()
+            snvAlignment_ch = SNVPHYL.out.snvAlignment.map{ meta, snvAlignment -> snvAlignment }.collect()
         }
 
-        COMBINE_GRIPHIN_SNVPHYL (
-            snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report
-        )
-        ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+        if (params.blind_list != null){ // if control list is passed allow it to be relative
+            // Allow control list to be relative
+            blind_path = Channel.fromPath(params.blind_list, relative: true)
+            // Create report
+            COMBINE_GRIPHIN_SNVPHYL (
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, snvAlignment_ch, blind_path, params.window_size, params.combine_complex, params.by_all
+            )
+            ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+        } else {
+            // combine without blinding
+            COMBINE_GRIPHIN_SNVPHYL (
+                snvMatrix_ch, vcf2core_ch, GRIPHIN_WORKFLOW.out.griphin_report, snvAlignment_ch, [], params.window_size, params.combine_complex, params.by_all
+            )
+            ch_versions = ch_versions.mix(COMBINE_GRIPHIN_SNVPHYL.out.versions)
+        }
+
 
         CUSTOM_DUMPSOFTWAREVERSIONS (
             ch_versions.unique().collectFile(name: 'collated_versions.yml')
@@ -323,7 +599,7 @@ workflow PHYLOPHOENIX {
 
 workflow.onComplete {
     if (params.email || params.email_on_fail) {
-        NfcoreTemplate.email(workflow, params, summary_params, projectDir, log, multiqc_report)
+        NfcoreTemplate.email(workflow, params, summary_params, projectDir, log)
     }
     NfcoreTemplate.summary(workflow, params, log)
     if (params.hook_url) {

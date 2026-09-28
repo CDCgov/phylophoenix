@@ -32,7 +32,6 @@ def get_ids_if_content_beyond_header(metadata):
             ids.append(first_data_line[0])
         except StopIteration:
             raise ValueError("The metadata file is empty.")
-        
         # Continue reading the rest of the file to get all IDs in the first column
         for row in reader:
             if row:  # Check if row is not empty
@@ -50,10 +49,8 @@ def verify_ids_in_metadata(ids, ids_to_keep):
 def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
     # Extract seq_type from the filename using regex
     match = re.search(r'_(.*?)_', st_snv_samplesheets)
-
     # Check if there is data in the metadata file and collect ids if present
     ids_in_meta = get_ids_if_content_beyond_header(metadata)
-
     # Collect the WGS_IDs from the first file
     ids_to_keep = []
     with open(st_snv_samplesheets, 'r') as reader:
@@ -65,40 +62,50 @@ def split_metadata_by_st(metadata, st_snv_samplesheets, seq_type):
 
     # Check that all ids to keep are in the metadata file. 
     verify_ids_in_metadata(ids_in_meta, ids_to_keep)
-
     # Filter the metadata file to keep only the relevant rows
     with open(metadata, 'r') as reader:
         lines = reader.readlines()  # Read all lines
         header = lines[0]
         filtered_lines = [header]  # Initialize with the header
-
         for line in lines[1:]:  # Process remaining lines
             meta_columns = line.strip().split('\t')[0]
             if meta_columns in ids_to_keep:
                 filtered_lines.append(line)
-
     # Check if the filtered result contains more than just the header
-    #if len(filtered_lines) <= 1:
-    #    raise ValueError(f"The metadata file is empty or contains only headers. PhyloPHoeNIx expects all samples to be in the metadata file, leave cells blank if there is no data for them, but include the WGS_ID in the first column.")
-
+    # if len(filtered_lines) <= 1:
+    #     raise ValueError(f"The metadata file is empty or contains only headers. PhyloPHoeNIx expects all samples to be in the metadata file, leave cells blank if there is no data for them, but include the WGS_ID in the first column.")
     # Rewrite the original metadata file with the filtered content
     with open(seq_type + "_metadata.tsv", 'w') as writer:
         writer.writelines(filtered_lines)
 
-def quality_check(samplesheet, metadata, seq_type):
+def quality_check(samplesheet, metadata):
     # Load metadata and samplesheet files
     samplesheet = pd.read_csv(samplesheet, sep=',')
-
+    samplesheet.columns = samplesheet.columns.str.lower()
     # Extract sample from the samplesheet file
     samplesheet_wgs_ids = samplesheet['sample'].tolist()
-
+    with open(metadata, "r") as f:
+        sample = f.read(2048)  # read first chunk
+        delimiter = csv.Sniffer().sniff(sample).delimiter
     # Load metadata files
-    metadata = pd.read_csv(metadata, sep='\t')
+    metadata = pd.read_csv(metadata, sep=delimiter)
+    #rename all columns to lowercase
+    metadata.columns = metadata.columns.str.lower()
+    metadata.columns = metadata.columns.str.strip().str.replace(" " ,"_").str.replace(r'[^a-z0-9_,]', '', regex=True)
+    print(metadata.columns)
     # Double-check that the first column of metadata is named 'sample' if not then rename it
     first_column = metadata.columns[0]
+    print(first_column)
     if first_column != 'sample':
-        print(f"Renaming first column from '{first_column}' to 'sample'.")
-        metadata.rename(columns={first_column: 'sample'}, inplace=True)
+        # Check if 'sample' column exists anywhere in the dataframe
+        if 'sample' in metadata.columns:
+            print(f"Moving 'sample' column to first position.")
+            # Get all columns and reorder with 'sample' first
+            cols = ['sample'] + [col for col in metadata.columns if col != 'sample']
+            metadata = metadata[cols]
+        else:
+            print(f"Renaming first column from '{first_column}' to 'sample'.")
+            metadata.rename(columns={first_column: 'sample'}, inplace=True)
 
     # Find missing sample names (those in the samplesheet but not in metadata)
     metadata_wgs_ids = metadata['sample'].tolist()
@@ -107,19 +114,17 @@ def quality_check(samplesheet, metadata, seq_type):
     # If there are missing IDs, add them to the metadata with empty values
     if missing_ids:
         print(f"Adding {missing_ids} missing sample(s) to the metadata.")
-        
         # Create a DataFrame with the missing IDs and NaN for all other columns
         missing_rows = pd.DataFrame(missing_ids, columns=['sample'])
         for col in metadata.columns[1:]:
             missing_rows[col] = pd.NA  # Fill the rest of the columns with NaN
-
         # Append the missing rows to the metadata
         metadata = pd.concat([metadata, missing_rows], ignore_index=True)
     return metadata
 
 def main():
     args = parseArgs()
-    updated_metadata = quality_check(args.st_snv_samplesheets, args.metadata, args.seq_type)
+    updated_metadata = quality_check(args.st_snv_samplesheets, args.metadata)
     # Save the updated metadata DataFrame back to a file (temporary or overwritten)
     updated_metadata_file = "updated_metadata.tsv"
     updated_metadata.to_csv(updated_metadata_file, sep='\t', index=False)

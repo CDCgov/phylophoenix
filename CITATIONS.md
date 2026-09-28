@@ -12,17 +12,15 @@
 
 - [FreeBayes](https://github.com/freebayes/freebayes)
   > Garrison E, Marth G. Haplotype-based variant detection from short-read sequencing. arXiv preprint arXiv:1207.3907 [q-bio.GN] 2012
-- [SMALT](https://github.com/rcallahan/smalt)
-- [SAMtools/BCFtools]](https://www.htslib.org/)
+- [SMALT](https://github.com/rcallahan/smalt)  
+- [SAMtools/BCFtools](https://www.htslib.org/)
   >  Danecek P, Bonfield JK, Liddle J, Marshall J, Ohan V, Pollard MO, Whitwham A, Keane T, McCarthy SA, Davies RM, Li H, Twelve years of SAMtools and BCFtools, GigaScience (2021) 10(2) giab008 [33590861]
 - [PhyML](https://github.com/stephaneguindon/phyml)
   > PhyML 3.0: "New Algorithms and Methods to Estimate Maximum-Likelihood Phylogenies: Assessing the Performance of PhyML 3.0." Guindon S., Dufayard J.F., Lefort V., Anisimova M., Hordijk W., Gascuel O. Systematic Biology, 59(3):307-21, 2010.
 - [PHoeNIx](https://github.com/CDCgov/phoenix)
-  > Jill V. Hagey, Nicholas Vlachos, Alyssa Kent, Peng Qi, Alison Laufer Halpin. (2024). CDCgov/phoenix: v2.1.1 (v2.1.1). Zenodo. https://doi.org/10.5281/zenodo.10869898
-
-
-- [Microreact](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
-
+  > Jill V. Hagey, Nicholas Vlachos, Alyssa Kent, Peng Qi, Thao Masters, Guanhui Baoa, Kara Mosera, Erin Breaker, Thomas O. Ewing, Gillian A. McAllister, Susannah McKay, Alison Laufer Halpin. (2026). CDCgov/phoenix: v2.3.2 (v2.3.2). Zenodo. https://zenodo.org/records/21143491 
+- [Microreact](https://microreact.org/)
+  > Argimón S, Abudahab K, Goater RJE, Fedosejev A, Bhai J, Glasner C, Feil EJ, Holden MTG, Yeats CA, Grundmann H, Spratt BG, Aanensen DM. Microreact: visualizing and sharing data for genomic epidemiology and phylogeography. Microb Genom. 2016 Nov 30;2(11):e000093. doi: 10.1099/mgen.0.000093. PMID: 28348833; PMCID: PMC5320705.
 
 ## Software packaging/containerisation tools
 

@@ -1,7 +1,7 @@
 process RENAME_REF_IN_OUTPUT {
     tag "${meta.seq_type}"
     label 'process_low'
-    container 'quay.io/jvhagey/phoenix:base_v2.1.0'
+    container params.phoenix_base_container
 
     input:
     tuple val(meta), path(centroid_file), path(tree_file), path(snvmatrix), path(metadata_file)
@@ -14,15 +14,10 @@ process RENAME_REF_IN_OUTPUT {
 
     script:
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
-    if (params.ica==false) {
-        ica = ""
-    } else if (params.ica==true) {
-        ica = "python ${workflow.launchDir}/bin/"
-    } else {
-        error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
-    }
+    def ica = params.ica ? "python ${params.bin_dir}" : ""
     // get container info
-    def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
+    def container_version = params.phoenix_container_version
+    def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     // define variables
     def metadata = metadata_file ? "-m ${metadata_file}" : ""
     def tree  = tree_file ? "-n ${tree_file}" : ""
@@ -31,8 +26,9 @@ process RENAME_REF_IN_OUTPUT {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-       python: \$(python --version | sed 's/Python //g')
-       phoenix_base_container: ${container}
+        python: \$(python --version | sed 's/Python //g')
+        phoenix_base_version: ${container_version}
+        phoenix_base_container: ${container}
     END_VERSIONS
     """
 }

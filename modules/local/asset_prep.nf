@@ -2,12 +2,11 @@ process ASSET_PREP {
     tag "${meta.seq_type}"
     label 'process_low'
     stageInMode 'copy'
-    container 'quay.io/jvhagey/phoenix:base_v2.1.0'
+    container params.phoenix_base_container
 
     input:
-    tuple val(meta), path(zipped_fasta)
+    tuple val(meta), path(zipped_fasta), path(st_snv_samplesheets)
     path(geo_data)
-    tuple val(meta), path(st_snv_samplesheets)
 
     output:
     tuple val(meta), path("*.filtered.scaffolds.fa"),   emit: unzipped_fasta
@@ -17,21 +16,22 @@ process ASSET_PREP {
 
     script:
     // Adding if/else for if running on ICA it is a requirement to state where the script is, however, this causes CLI users to not run the pipeline from any directory.
-    if (params.ica==false) {
-        ica = ""
-    } else if (params.ica==true) {
-        ica = "python ${workflow.launchDir}/bin/"
-    } else {
-        error "Please set params.ica to either \"true\" if running on ICA or \"false\" for all other methods."
-    }
-    refname = zipped_fasta.toString() - '.filtered.scaffolds.fa.gz'
-    def container = task.container.toString() - "quay.io/jvhagey/phoenix:"
+    def ica = params.ica ? "python ${params.bin_dir}" : ""
+    def refname = zipped_fasta.toString() - '.filtered.scaffolds.fa.gz' - '.fna.gz'
+    def container_version = params.phoenix_container_version
+    def container = task.container.toString() - "quay.io/jvhagey/phoenix@"
     """
     if [[ ${zipped_fasta} == *.gz ]]
     then
         gunzip --force ${zipped_fasta}
+        # make sure to get the correct name of the unzipped file
+        unzipped_fasta="\$(basename ${zipped_fasta} .gz)"
     else
-        :
+        unzipped_fasta="${zipped_fasta}"
+    fi
+
+    if [[ "\$unzipped_fasta" != *.filtered.scaffolds.fa ]]; then
+        mv "\$unzipped_fasta" "${refname}.filtered.scaffolds.fa"
     fi
 
     for file in ${geo_data}; do
@@ -45,6 +45,7 @@ process ASSET_PREP {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         python: \$(python --version | sed 's/Python //g')
+        phoenix_base_version: ${container_version}
         phoenix_base_container: ${container}
     END_VERSIONS
     """
