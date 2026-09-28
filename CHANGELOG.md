@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Implemented Enhancements:** 
 - PhyloPHoeNIx now run on Terra.bio!
 - Window size default set to 500bp to align with SNVPhyl paper. Closes [#7](https://github.com/CDCgov/phylophoenix/issues/7).  
-- SNVPhyl now splits analysis by taxa creating taxa specific sheets in final output.  
+- SNVPhyl now splits analysis by species creating taxa specific sheets in final output. If you don't want to do this use --no_species.
+- --by_all now used to force running all samples together in addition to the default --by_species.
 - Big-5 genes (NDM, IMP, KPC, VIM, OXA-48 like, ) added to metadata files when its provided.  
 - GRiPHin module and python script updated to be inline with [PHoeNIx pipeline](https://github.com/CDCgov/phoenix).  
 - Similar to PHoeNIx moved container calling to sha256 instead of tag.  
