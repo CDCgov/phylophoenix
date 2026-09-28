@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 🎉First official release.🎉
 
-## [v1.1.0](https://github.com/CDCgov/phylophoenix/releases/tag/v1.1.0) (XX/XX/2026)
+## [v1.1.0](https://github.com/CDCgov/phylophoenix/releases/tag/v1.1.0) (09/28/2026)
 
 [Full Changelog](https://github.com/CDCgov/phylophoenix/compare/v1.0dev...v1.1.0)
 
